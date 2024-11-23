@@ -1,0 +1,18 @@
+#chat-container {
+  width: 500px;
+  margin: 0 auto;
+}
+
+#chat-window {
+  height: 400px;
+  border: 1px solid #ccc;
+  overflow-y: scroll;
+}
+
+#user-input {
+  width: 80%;
+}
+
+#send-button {
+  width: 18%;
+}
