@@ -16,6 +16,10 @@
 	},
 	"dependencies": {
 		"dotenv": "^16.4.5",
-		"openai": "^4.73.1"
+		"openai": "^4.73.1",
+		"pdf-parse": "^1.1.1",
+		"pdfjs-dist": "^4.9.124",
+		"sharp": "^0.33.5",
+		"tesseract.js": "^5.1.1"
 	}
 }
