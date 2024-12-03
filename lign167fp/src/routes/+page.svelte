@@ -1,43 +1,71 @@
 <!-- src/routes/+page.svelte -->
 <script>
-  import { afterUpdate } from 'svelte';
+  import { afterUpdate, onDestroy } from 'svelte';
 
   let prompt = "";              // The user input for the prompt
   let messages = [];            // An array to store the conversation history
   let isLoading = false;        // A flag to show loading state
   let messageContainer;         // The container that holds the messages
 
-  // Additional variables for file upload
-  let selectedFile = null;      // The file selected by the user
-  let previewUrl = null;        // URL for image preview (optional)
+  // Updated variables for multiple file uploads
+  let selectedFiles = [];       // An array to hold selected files
+  let previewUrls = [];         // An array to hold preview URLs for selected files
   let uploadError = '';         // Error message for file upload
   let uploadSuccess = false;    // Success flag for file upload
 
+  const MAX_FILES = 5;          // Maximum number of files allowed
+  const allowedTypes = ['image/jpeg', 'image/png']; // Allowed file types
+  const MAX_SIZE = 5 * 1024 * 1024; // 5MB per file
+
   // Function to handle file selection
   function handleFileChange(event) {
-    const file = event.target.files[0];
-    if (file) {
-      selectedFile = file;
+    const files = Array.from(event.target.files);
+    let validFiles = [];
+    let previews = [];
+    let errorMessages = [];
 
-      // Optional: Generate a preview for image files
-      if (file.type.startsWith('image/')) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          previewUrl = e.target.result;
-        };
-        reader.readAsDataURL(file);
-      } else {
-        previewUrl = null;
-      }
-    } else {
-      selectedFile = null;
-      previewUrl = null;
+    if (files.length > MAX_FILES) {
+      errorMessages.push(`You can only upload up to ${MAX_FILES} images.`);
     }
+
+    files.slice(0, MAX_FILES).forEach(file => {
+      if (!allowedTypes.includes(file.type)) {
+        errorMessages.push(`Unsupported file type: ${file.name}`);
+        return;
+      }
+      if (file.size > MAX_SIZE) {
+        errorMessages.push(`File size exceeds 5MB: ${file.name}`);
+        return;
+      }
+      validFiles.push(file);
+      previews.push(URL.createObjectURL(file));
+    });
+
+    if (errorMessages.length > 0) {
+      uploadError = errorMessages.join(' ');
+    } else {
+      uploadError = '';
+    }
+
+    selectedFiles = validFiles;
+    previewUrls = previews;
   }
 
-  // Function to send the user's prompt and file to the backend and get the AI's response
+  // Function to remove a selected file
+  function removeFile(index) {
+    // Revoke the object URL to free memory
+    URL.revokeObjectURL(previewUrls[index]);
+
+    selectedFiles.splice(index, 1);
+    previewUrls.splice(index, 1);
+
+    // Clear error if any
+    uploadError = '';
+  }
+
+  // Function to send the user's prompt and files to the backend and get the AI's response
   async function sendPrompt() {
-    if (!prompt && !selectedFile) return; // Prevent sending if no prompt or file
+    if (!prompt.trim() && selectedFiles.length === 0) return; // Prevent sending if no prompt or files
 
     isLoading = true;
     uploadError = '';
@@ -49,11 +77,12 @@
       formData.append('prompt', prompt);
       formData.append('messages', JSON.stringify(messages));
 
-      if (selectedFile) {
-        formData.append('file', selectedFile);
-      }
+      // Append all selected files to the FormData
+      selectedFiles.forEach(file => {
+        formData.append('file', file);
+      });
 
-      // Send the prompt and file to the backend
+      // Send the prompt and files to the backend
       const response = await fetch('/api/chat', {
         method: 'POST',
         body: formData, // Let the browser set the Content-Type to multipart/form-data
@@ -94,8 +123,9 @@
     } finally {
       // Reset prompt and file input
       prompt = "";
-      selectedFile = null;
-      previewUrl = null;
+      selectedFiles = [];
+      previewUrls.forEach(url => URL.revokeObjectURL(url)); // Clean up preview URLs
+      previewUrls = [];
       isLoading = false;
     }
   }
@@ -113,6 +143,11 @@
     if (messageContainer) {
       messageContainer.scrollTop = messageContainer.scrollHeight;
     }
+  });
+
+  // Clean up object URLs on component destroy to prevent memory leaks
+  onDestroy(() => {
+    previewUrls.forEach(url => URL.revokeObjectURL(url));
   });
 </script>
 
@@ -222,29 +257,56 @@
     align-self: flex-start;
   }
 
-  /* Styles for file preview and status messages */
-  .preview {
+  /* Styles for file previews and status messages */
+  .previews {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
     margin-top: 10px;
+  }
+
+  .preview {
+    position: relative;
+    width: 150px;
+    height: 150px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    overflow: hidden;
+    background-color: #f9f9f9;
   }
 
   .preview img {
-    max-width: 100%;
-    height: auto;
-    border-radius: 5px;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
   }
 
-  .status {
-    margin-top: 10px;
+  .remove-button {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    background-color: rgba(255, 0, 0, 0.7);
+    border: none;
+    color: white;
+    border-radius: 50%;
+    width: 25px;
+    height: 25px;
+    cursor: pointer;
     font-weight: bold;
+    line-height: 25px;
     text-align: center;
   }
 
-  .error {
-    color: red;
+  .upload-status {
+    margin-top: 10px;
+    font-weight: bold;
+    color: green;
   }
 
-  .success {
-    color: green;
+  .error {
+    margin-top: 10px;
+    font-weight: bold;
+    color: red;
   }
 </style>
 
@@ -278,28 +340,33 @@
       ></textarea>
 
       <!-- File Upload Section -->
-      <label for="file">Attach an image (optional):</label>
-      <input type="file" id="file" accept="image/jpeg,image/png" on:change={handleFileChange} />
+      <label for="file">Attach images:</label>
+      <input type="file" id="file" accept="image/jpeg,image/png" multiple on:change={handleFileChange} />
 
-      {#if previewUrl}
-        <div class="preview">
-          <p>Image Preview:</p>
-          <img src={previewUrl} alt="Image Preview" />
+      <!-- Display Previews of Selected Files -->
+      {#if previewUrls.length > 0}
+        <div class="previews">
+          {#each previewUrls as url, index}
+            <div class="preview">
+              <img src={url} alt={`Selected Image ${index + 1}`} />
+              <button type="button" class="remove-button" on:click={() => removeFile(index)}>×</button>
+            </div>
+          {/each}
         </div>
       {/if}
 
-      <button type="submit" disabled={isLoading || (!prompt && !selectedFile)}>
+      <!-- Upload Status Messages -->
+      {#if uploadSuccess}
+        <p class="upload-status">Files uploaded successfully!</p>
+      {/if}
+
+      {#if uploadError}
+        <p class="error">Error: {uploadError}</p>
+      {/if}
+
+      <button type="submit" disabled={isLoading || (prompt.trim() === "" && selectedFiles.length === 0)}>
         {isLoading ? 'Processing...' : 'Send'}
       </button>
     </form>
   </div>
-
-  <!-- Status Messages -->
-  {#if uploadError}
-    <p class="status error">{uploadError}</p>
-  {/if}
-
-  {#if uploadSuccess}
-    <p class="status success">Your message was sent successfully!</p>
-  {/if}
 </div>

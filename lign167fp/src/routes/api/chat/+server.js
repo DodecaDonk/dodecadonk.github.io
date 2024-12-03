@@ -6,8 +6,6 @@ import fs from 'fs';
 import path from 'path';
 import { randomUUID } from 'crypto';
 import Tesseract from 'tesseract.js'; // For OCR
-import sharp from 'sharp'; // For image preprocessing (optional)
-
 
 // Define the upload directory
 const UPLOAD_DIR = path.resolve('static', 'uploads');
@@ -23,8 +21,8 @@ export const POST = async ({ request }) => {
 
     let prompt = '';
     let messages = [];
-    let fileUrl = null;
-    let imageText = '';
+    let fileUrls = []; // Array to store multiple file URLs
+    let imageTexts = []; // Array to store extracted text from images
 
     if (contentType.includes('application/json')) {
       // Handle JSON request
@@ -40,43 +38,35 @@ export const POST = async ({ request }) => {
       const messagesJson = formData.get('messages');
       messages = messagesJson ? JSON.parse(messagesJson) : [];
 
-      // Handle file upload if present
-      const file = formData.get('file');
-      if (file && typeof file === 'object' && file.name && file.stream) {
-        // Validate file size (e.g., max 5MB)
-        const MAX_SIZE = 5 * 1024 * 1024; // 5MB
-        if (file.size > MAX_SIZE) {
-          return json({ error: 'File size exceeds the 5MB limit.' }, { status: 400 });
+      // Handle file uploads
+      const files = formData.getAll('file'); // Get all files with the name 'file'
+      for (const file of files) {
+        if (file && typeof file === 'object' && file.name && file.stream) {
+          // Validate file size (e.g., max 5MB)
+          const MAX_SIZE = 5 * 1024 * 1024; // 5MB
+          if (file.size > MAX_SIZE) {
+            return json({ error: 'One of the files exceeds the 5MB limit.' }, { status: 400 });
+          }
+
+          // Validate file type
+          const allowedTypes = ['image/jpeg', 'image/png']; // Only allow JPEG and PNG images
+          if (!allowedTypes.includes(file.type)) {
+            return json({ error: 'Unsupported file type detected. Only JPEG and PNG images are allowed.' }, { status: 400 });
+          }
+
+          // Generate a unique filename to avoid conflicts
+          const fileExtension = path.extname(file.name);
+          const filename = `${randomUUID()}${fileExtension}`;
+          const filepath = path.join(UPLOAD_DIR, filename);
+
+          // Save the original image
+          const buffer = Buffer.from(await file.arrayBuffer());
+          fs.writeFileSync(filepath, buffer);
+
+          // Generate the file URL and add to the array
+          const fileUrl = `/uploads/${filename}`;
+          fileUrls.push(fileUrl);
         }
-
-        // Validate file type
-        const allowedTypes = ['image/jpeg', 'image/png']; // Only allow JPEG and PNG images
-        if (!allowedTypes.includes(file.type)) {
-          return json({ error: 'Unsupported file type. Only JPEG and PNG images are allowed.' }, { status: 400 });
-        }
-
-        // Generate a unique filename to avoid conflicts
-        const fileExtension = path.extname(file.name);
-        const filename = `${randomUUID()}${fileExtension}`;
-        const filepath = path.join(UPLOAD_DIR, filename);
-
-        // Optional: Preprocess the image (e.g., resize, grayscale)
-        // Uncomment the following lines if you want to preprocess the image
-        /*
-        const imageBuffer = await file.arrayBuffer();
-        const processedBuffer = await sharp(Buffer.from(imageBuffer))
-          .resize(1024) // Resize to width 1024px, maintaining aspect ratio
-          .grayscale() // Convert to grayscale
-          .toBuffer();
-        fs.writeFileSync(filepath, processedBuffer);
-        */
-
-        // If no preprocessing, save the original image
-        const buffer = Buffer.from(await file.arrayBuffer());
-        fs.writeFileSync(filepath, buffer);
-
-        // Generate the file URL
-        fileUrl = `/uploads/${filename}`;
       }
     } else {
       // Unsupported Content-Type
@@ -86,14 +76,30 @@ export const POST = async ({ request }) => {
     // Log incoming data for debugging
     console.log('Received prompt:', prompt);
     console.log('Received messages:', messages);
-    if (fileUrl) {
-      console.log('Received file URL:', fileUrl);
+    if (fileUrls.length > 0) {
+      console.log('Received file URLs:', fileUrls);
     }
 
-    // Define the system message
+    // Define the system message with instruction to use HTML
     const systemMessage = { 
       role: 'system', 
-      content: 'You are a helpful assistant. Use the information provided in the uploaded image to assist the user.' 
+      content: `
+You are a helpful assistant that conducts content reviews based strictly on the information provided in the documents uploaded by the student.
+
+**Guidelines:**
+1. Style your responses as if you were a teacher.
+2. **Do not ask any questions until at least one document is available.**
+3. After a document or a group of documents has been uploaded, confirm if there will be any more.
+4. For each document, generate **no more than two questions** based solely on its content.
+5. Do not ask all questions at once. Ask two questions per document, and once the student has answered them—correctly or incorrectly—proceed to the next document.
+6. **Do not use information from any external sources** to formulate questions.
+7. Correct the student's responses based on the accuracy relative to the information provided in the uploaded documents.
+8. If the student shows any resistance to the answers provided, review the previous answer for any inaccuracies. If the answer provided is correct, firmly reaffirm its correctness.
+9. At the end of the session, provide a **summary** highlighting areas the student should improve on based on their incorrect responses.
+
+**Response Formatting:**
+- Utilize headings, bullet points, bold text, and other HTML elements where appropriate for clarity and emphasis.
+      `
     };
 
     // Initialize conversation messages
@@ -103,36 +109,36 @@ export const POST = async ({ request }) => {
       { role: 'user', content: prompt }
     ];
 
-    // If a file URL is provided, include it in the context
-    if (fileUrl) {
-      conversation.push({ role: 'system', content: `Referenced Image: ${fileUrl}` });
+    // If file URLs are provided, include them in the context
+    if (fileUrls.length > 0) {
+      for (let i = 0; i < fileUrls.length; i++) {
+        const fileUrl = fileUrls[i];
+        // Include the document image
+        conversation.push({ role: 'system', content: `<img src="${fileUrl}" alt="Document ${i + 1}">` });
 
-      // **Image Text Extraction Section**
-      const filePath = path.join(UPLOAD_DIR, path.basename(fileUrl)); // Extract filename from URL
-      console.log('Constructed file path for OCR:', filePath); // Log the file path
+        // **Image Text Extraction Section**
+        const filePath = path.join(UPLOAD_DIR, path.basename(fileUrl)); // Extract filename from URL
+        console.log(`Constructed file path for OCR (Image ${i + 1}):`, filePath); // Log the file path
 
-      // Check if the file exists before reading
-      if (!fs.existsSync(filePath)) {
-        console.error('Image file does not exist at path:', filePath);
-        return json({ error: 'Uploaded image file not found on the server.' }, { status: 500 });
-      }
+        // Check if the file exists before reading
+        if (!fs.existsSync(filePath)) {
+          console.error('Image file does not exist at path:', filePath);
+          return json({ error: 'Uploaded image file not found on the server.' }, { status: 500 });
+        }
 
-      // Perform OCR to extract text from the image
-      try {
-        // Optional: If you preprocessed the image with sharp, use the processed image
-        // const processedImagePath = path.join(UPLOAD_DIR, `processed-${path.basename(fileUrl)}`);
-        // const { data: { text } } = await Tesseract.recognize(processedImagePath, 'eng', { logger: m => console.log(m) });
+        // Perform OCR to extract text from the image
+        try {
+          const { data: { text } } = await Tesseract.recognize(filePath, 'eng', { logger: m => console.log(m) });
+          const imageText = text.trim();
+          imageTexts.push(imageText);
 
-        // Perform OCR on the original image
-        const { data: { text } } = await Tesseract.recognize(filePath, 'eng', { logger: m => console.log(m) });
-        imageText = text.trim();
-
-        // Include the extracted text in the conversation
-        conversation.push({ role: 'system', content: `Image Content: ${imageText}` });
-        console.log('Image text extracted successfully.');
-      } catch (ocrError) {
-        console.error('Error during OCR processing:', ocrError);
-        return json({ error: 'Failed to extract text from the uploaded image.' }, { status: 500 });
+          // Include the extracted text in the conversation using HTML formatting
+          conversation.push({ role: 'system', content: `<strong>Content from Document ${i + 1}:</strong><br><p>${imageText}</p>` });
+          console.log(`Image text extracted successfully for Image ${i + 1}.`);
+        } catch (ocrError) {
+          console.error('Error during OCR processing:', ocrError);
+          return json({ error: 'Failed to extract text from one of the uploaded images.' }, { status: 500 });
+        }
       }
     }
 
@@ -142,6 +148,7 @@ export const POST = async ({ request }) => {
       messages: conversation,
       temperature: 0.7,
       max_tokens: 1500,
+      // You can add more parameters as needed
     };
 
     // Send the request to OpenAI's API
