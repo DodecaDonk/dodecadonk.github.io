@@ -115,30 +115,6 @@ You are a helpful assistant that conducts content reviews based strictly on the 
         const fileUrl = fileUrls[i];
         // Include the document image
         conversation.push({ role: 'system', content: `<img src="${fileUrl}" alt="Document ${i + 1}">` });
-
-        // **Image Text Extraction Section**
-        const filePath = path.join(UPLOAD_DIR, path.basename(fileUrl)); // Extract filename from URL
-        console.log(`Constructed file path for OCR (Image ${i + 1}):`, filePath); // Log the file path
-
-        // Check if the file exists before reading
-        if (!fs.existsSync(filePath)) {
-          console.error('Image file does not exist at path:', filePath);
-          return json({ error: 'Uploaded image file not found on the server.' }, { status: 500 });
-        }
-
-        // Perform OCR to extract text from the image
-        try {
-          const { data: { text } } = await Tesseract.recognize(filePath, 'eng', { logger: m => console.log(m) });
-          const imageText = text.trim();
-          imageTexts.push(imageText);
-
-          // Include the extracted text in the conversation using HTML formatting
-          conversation.push({ role: 'system', content: `<strong>Content from Document ${i + 1}:</strong><br><p>${imageText}</p>` });
-          console.log(`Image text extracted successfully for Image ${i + 1}.`);
-        } catch (ocrError) {
-          console.error('Error during OCR processing:', ocrError);
-          return json({ error: 'Failed to extract text from one of the uploaded images.' }, { status: 500 });
-        }
       }
     }
 
@@ -146,8 +122,8 @@ You are a helpful assistant that conducts content reviews based strictly on the 
     const body = {
       model: 'gpt-4',
       messages: conversation,
-      temperature: 0.7,
-      max_tokens: 1500,
+      temperature: 0.3,
+      max_tokens: 4000,
       // You can add more parameters as needed
     };
 
