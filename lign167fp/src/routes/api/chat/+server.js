@@ -115,6 +115,7 @@ You are a helpful assistant that conducts content reviews based strictly on the 
         const fileUrl = fileUrls[i];
         // Include the document image
         conversation.push({ role: 'system', content: `<img src="${fileUrl}" alt="Document ${i + 1}">` });
+        console.log("Adding URL: ", { role: 'system', content: `<img src="${fileUrl}" alt="Document ${i + 1}">` });
       }
     }
 
