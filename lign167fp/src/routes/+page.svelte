@@ -182,11 +182,12 @@
 
   /* Adjust the message container */
   .message-container {
-    flex-grow: 1; /* Allow the message container to take up remaining space */
-    overflow-y: auto; /* Enable scrolling when messages overflow */
-    margin-bottom: 20px;
-    padding-right: 10px; /* Add some padding to the right */
-  }
+  flex-grow: 1;
+  overflow-y: auto; 
+  padding: 10px;
+  max-height: 100%; 
+  box-sizing: border-box; 
+}
 
   /* Style for the "AI is thinking..." message */
   .loading {
@@ -256,11 +257,13 @@
   background-color: #f1f8e9; /* light green */
   align-self: flex-start;
   padding: 10px; 
-  border-radius: 5px;
+  border-radius: 5px; 
+  width: auto; 
   max-width: 100%; 
   word-wrap: break-word; 
   white-space: pre-wrap; 
   box-sizing: border-box; 
+  overflow: visible;
 }
 
 
