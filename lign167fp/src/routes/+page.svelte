@@ -253,9 +253,16 @@
   }
 
   .assistant-message {
-    background-color: #f1f8e9;
-    align-self: flex-start;
-  }
+  background-color: #f1f8e9; /* light green */
+  align-self: flex-start;
+  padding: 10px; 
+  border-radius: 5px;
+  max-width: 100%; 
+  word-wrap: break-word; 
+  white-space: pre-wrap; 
+  box-sizing: border-box; 
+}
+
 
   /* Styles for file previews and status messages */
   .previews {
@@ -316,11 +323,12 @@
   <!-- Displaying the conversation messages -->
   <div class="message-container" bind:this={messageContainer}>
     {#each messages as { role, content }}
-      <div class={role === 'user' ? 'user-message' : 'assistant-message'}>
-        <strong>{role === 'user' ? 'You' : 'Tutor'}:</strong>
-        <p>{content}</p>
-      </div>
-    {/each}
+    <div class={role === 'user' ? 'user-message' : 'assistant-message'}>
+    <strong>{role === 'user' ? 'You' : 'Tutor'}:</strong>
+    <pre>{content}</pre>
+  </div>
+{/each}
+
   </div>
 
   <!-- Loading state message -->
