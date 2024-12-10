@@ -23,6 +23,7 @@ export const POST = async ({ request }) => {
     let messages = [];
     let fileUrls = []; // Array to store multiple file URLs
     let imageTexts = []; // Array to store extracted text from images
+    let messageHistory = [];
 
     if (contentType.includes('application/json')) {
       // Handle JSON request
@@ -91,11 +92,11 @@ You are a helpful assistant that conducts content reviews based strictly on the 
 2. **Do not ask any questions until at least one document is available.**
 3. After a document or a group of documents has been uploaded, confirm if there will be any more.
 4. For each document, generate **no more than two questions** based solely on its content.
-5. Do not ask all questions at once. Ask two questions per document, and once the student has answered them—correctly or incorrectly—proceed to the next document.
+5. Do not ask all questions at once. Ask two to four questions per document, depending on how much content is available, and once the student has answered them—correctly or incorrectly—proceed to the next document.
 6. **Do not use information from any external sources** to formulate questions.
 7. Correct the student's responses based on the accuracy relative to the information provided in the uploaded documents.
 8. If the student shows any resistance to the answers provided, review the previous answer for any inaccuracies. If the answer provided is correct, firmly reaffirm its correctness.
-9. At the end of the session, provide a **summary** highlighting areas the student should improve on based on their incorrect responses.
+9. At the end of the session, provide a **summary** highlighting areas the student should improve on based on their incorrect responses, and point out areas where they did well!.
 
 **Response Formatting:**
 - Utilize headings, bullet points, bold text, and other HTML elements where appropriate for clarity and emphasis.
@@ -105,6 +106,7 @@ You are a helpful assistant that conducts content reviews based strictly on the 
     // Initialize conversation messages
     let conversation = [
       systemMessage,
+      ...messageHistory,
       ...messages,
       { role: 'user', content: prompt }
     ];
@@ -141,13 +143,12 @@ You are a helpful assistant that conducts content reviews based strictly on the 
         }
       }
     }
-
     // Prepare the request body for OpenAI's API
     const body = {
       model: 'gpt-4',
       messages: conversation,
-      temperature: 0.7,
-      max_tokens: 1500,
+      temperature: 0.3,
+      max_tokens: 4000,
       // You can add more parameters as needed
     };
 
@@ -165,7 +166,7 @@ You are a helpful assistant that conducts content reviews based strictly on the 
     console.log('OpenAI response status:', response.status);
 
     // Check if the API response is successful
-    if (!response.ok) {
+    if (!response.ok) { 
       const errorData = await response.json();
       console.error('OpenAI API Error:', errorData);
       throw new Error(`OpenAI API Error: ${errorData.error.message}`);
