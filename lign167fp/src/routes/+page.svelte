@@ -15,7 +15,7 @@
 
   const MAX_FILES = 5;          // Maximum number of files allowed
   const allowedTypes = ['image/jpeg', 'image/png', 'application/pdf']; // Allowed file types
-  const MAX_SIZE = 5 * 1024 * 1024; // 5MB per file
+  const MAX_SIZE = 10 * 1024 * 1024; // 10MB per file
 
   // Function to handle file selection
   function handleFileChange(event) {
@@ -358,7 +358,7 @@
 
   <!-- Loading state message -->
   {#if isLoading}
-    <p class="loading">The Tutor is thinking...</p>
+    <p class="loading">thinking...</p>
   {/if}
 
   <!-- Chat Input Form -->
