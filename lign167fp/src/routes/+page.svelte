@@ -154,7 +154,6 @@
     }
   }
 
-  // ******************************************************************************************************************************************************8
    // Function to send a summary message to the tutor
    async function sendSummary() {
     prompt = "I am done answering questions, give me a summary";
@@ -297,7 +296,7 @@
     gap: 10px; /* Space between textarea and button */
     margin-top: 10px;
   }
-/* 888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888 */
+
   button[type="summarize"] {
     background-color: #a1e6b1; /* Green color */
     color: white;
