@@ -17,6 +17,28 @@ if (!fs.existsSync(UPLOAD_DIR)) {
 
 const sessionStore = {}; // Key: sessionId, Value: { documents: [], messages: [] }
 
+// Define maximum limits
+const MAX_MESSAGES = 100;
+const MAX_DOCUMENTS = 50;
+
+// Helper function to trim messages
+function trimMessages(messages) {
+  if (messages.length > MAX_MESSAGES) {
+    // Remove the oldest messages
+    return messages.slice(-MAX_MESSAGES);
+  }
+  return messages;
+}
+
+// Helper function to trim documents
+function trimDocuments(documents) {
+  if (documents.length > MAX_DOCUMENTS) {
+    // Remove the oldest documents
+    return documents.slice(-MAX_DOCUMENTS);
+  }
+  return documents;
+}
+
 export const POST = async ({ request }) => {
   try {
     const contentType = request.headers.get('content-type') || '';
@@ -141,7 +163,7 @@ You are a helpful assistant that conducts content reviews based strictly on the 
             const { data: { text } } = await Tesseract.recognize(filePath, 'eng', { logger: m => console.log(m) });
             const imageText = text.trim();
             // Include the extracted text in the conversation using HTML formatting
-            documents.push({ role: 'user', content: `<strong>Content from Document ${i + 1}:</strong><br><p>${imageText}</p>` });
+            documents.push({ role: 'user', content: `<strong>Content from Slide ${i + 1}:</strong><br><p>${imageText}</p>` });
             console.log(`Image text extracted successfully for Image ${i + 1}.`);
           } catch (ocrError) {
             console.error('Error during OCR processing:', ocrError);
@@ -162,11 +184,16 @@ You are a helpful assistant that conducts content reviews based strictly on the 
           try {
             // Dynamic import to comply with ES Modules
             const { GetTextFromPDF } = await import('./pdfExport.js'); // Ensure the correct path and file extension
-            const extractedText = await GetTextFromPDF(filePath);
-            const pdfText = extractedText.trim();
+            const extractedSlides = await GetTextFromPDF(filePath); // Array of slides with slide numbers and text
 
-            // Include the extracted text in the conversation using HTML formatting
-            documents.push({ role: 'user', content: `<strong>Content from Document ${i + 1}:</strong><br><p>${pdfText}</p>` });
+            // Iterate through each slide and add to documents with slide number
+            for (const slide of extractedSlides) {
+              documents.push({ 
+                role: 'user', 
+                content: `<strong>Content from Slide ${slide.slide}:</strong><br><p>${slide.text}</p>` 
+              });
+            }
+
             console.log(`PDF text extracted successfully for PDF ${i + 1}.`);
           } catch (pdfError) {
             console.error('Error during PDF text extraction:', pdfError);
@@ -177,6 +204,9 @@ You are a helpful assistant that conducts content reviews based strictly on the 
 
       // Save documents to the session store
       sessionStore[sessionId].documents = sessionStore[sessionId].documents.concat(documents);
+
+      // Trim documents if necessary
+      sessionStore[sessionId].documents = trimDocuments(sessionStore[sessionId].documents);
     }
 
     console.log("Documents: ", sessionStore[sessionId].documents);
@@ -184,10 +214,16 @@ You are a helpful assistant that conducts content reviews based strictly on the 
     // After parsing messages from the request, assign to messageHistory
     messageHistory = messages || [];
 
+    // Save messages to the session store
+    sessionStore[sessionId].messages = sessionStore[sessionId].messages.concat(messageHistory);
+
+    // Trim messages if necessary
+    sessionStore[sessionId].messages = trimMessages(sessionStore[sessionId].messages);
+
     // Initialize conversation messages
     let conversation = [
       systemMessage,
-      ...messageHistory,
+      ...sessionStore[sessionId].messages, // Only include trimmed message history
       ...sessionStore[sessionId].documents,
       { role: 'user', content: prompt }
     ];
@@ -226,11 +262,14 @@ You are a helpful assistant that conducts content reviews based strictly on the 
     // Log the AI's reply for debugging
     console.log('AI Reply:', data.choices[0].message.content);
 
-    // Optionally, update the session messages
+    // Optionally, update the session messages with the latest prompt and response
     sessionStore[sessionId].messages = sessionStore[sessionId].messages.concat([
       { role: 'user', content: prompt },
       { role: 'assistant', content: data.choices[0].message.content }
     ]);
+
+    // Trim messages again after adding the latest interaction
+    sessionStore[sessionId].messages = trimMessages(sessionStore[sessionId].messages);
 
     // Return the AI's reply along with the sessionId for client-side tracking
     return json({ 
