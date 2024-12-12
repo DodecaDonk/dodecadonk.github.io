@@ -1,6 +1,6 @@
 <!-- src/routes/+page.svelte -->
 <script>
-  import { afterUpdate, onDestroy } from 'svelte';
+  import { afterUpdate, onDestroy, onMount } from 'svelte';
 
   let prompt = "";              // The user input for the prompt
   let messages = [];            // An array to store the conversation history
@@ -12,10 +12,17 @@
   let previewUrls = [];         // An array to hold preview URLs for selected files
   let uploadError = '';         // Error message for file upload
   let uploadSuccess = false;    // Success flag for file upload
+  let fileUploader;             // Bindings for clearing the file upload text
+  let uploadArea;               // ^
+  let fileValue;                // ^
 
   const MAX_FILES = 5;          // Maximum number of files allowed
   const allowedTypes = ['image/jpeg', 'image/png', 'application/pdf']; // Allowed file types
   const MAX_SIZE = 10 * 1024 * 1024; // 10MB per file
+
+  onMount(() => {
+    fileUploader = uploadArea.querySelector('.file'); //binds the uploader
+  });
 
   // Function to handle file selection
   function handleFileChange(event) {
@@ -131,6 +138,9 @@
       previewUrls.forEach(file => URL.revokeObjectURL(file.url)); // Clean up preview URLs
       previewUrls = [];
       isLoading = false;
+
+      fileValue = ''; //clears the file value text
+      console.log(fileValue);
     }
   }
 
@@ -372,9 +382,11 @@
         on:keydown={handleKeyPress}
       ></textarea>
 
-      <!-- File Upload Section -->
-      <label for="file">Attach images or PDFs:</label>
-      <input type="file" id="file" accept="image/jpeg,image/png,application/pdf" multiple on:change={handleFileChange} />
+      <!-- File Upload Section -->      
+      <div bind:this={uploadArea}>
+        <label for="file">Attach images or PDFs:</label>
+        <input type="file" bind:value={fileValue} id="file" accept="image/jpeg,image/png,application/pdf" multiple on:change={handleFileChange} />
+      </div>
 
       <!-- Display Previews of Selected Files -->
       {#if previewUrls.length > 0}
