@@ -14,7 +14,7 @@
   let uploadSuccess = false;    // Success flag for file upload
 
   const MAX_FILES = 5;          // Maximum number of files allowed
-  const allowedTypes = ['image/jpeg', 'image/png']; // Allowed file types
+  const allowedTypes = ['image/jpeg', 'image/png', 'application/pdf']; // Allowed file types
   const MAX_SIZE = 5 * 1024 * 1024; // 5MB per file
 
   // Function to handle file selection

@@ -15,15 +15,18 @@ if (!fs.existsSync(UPLOAD_DIR)) {
   fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 }
 
+let messages = [];
+let fileUrls = []; // Array to store multiple file URLs
+let imageTexts = []; // Array to store extracted text from images
+let documents = [];
+let messageHistory = [];
+
 export const POST = async ({ request }) => {
   try {
     const contentType = request.headers.get('content-type') || '';
 
     let prompt = '';
-    let messages = [];
-    let fileUrls = []; // Array to store multiple file URLs
-    let imageTexts = []; // Array to store extracted text from images
-    let messageHistory = [];
+    
 
     if (contentType.includes('application/json')) {
       // Handle JSON request
@@ -50,7 +53,7 @@ export const POST = async ({ request }) => {
           }
 
           // Validate file type
-          const allowedTypes = ['image/jpeg', 'image/png']; // Only allow JPEG and PNG images
+          const allowedTypes = ['image/jpeg', 'image/png', 'application/pdf']; // Only allow JPEG and PNG images
           if (!allowedTypes.includes(file.type)) {
             return json({ error: 'Unsupported file type detected. Only JPEG and PNG images are allowed.' }, { status: 400 });
           }
@@ -76,7 +79,6 @@ export const POST = async ({ request }) => {
 
     // Log incoming data for debugging
     console.log('Received prompt:', prompt);
-    console.log('Received messages:', messages);
     if (fileUrls.length > 0) {
       console.log('Received file URLs:', fileUrls);
     }
@@ -90,8 +92,8 @@ You are a helpful assistant that conducts content reviews based strictly on the 
 **Guidelines:**
 1. Style your responses as if you were a teacher.
 2. **Do not ask any questions until at least one document is available.**
-3. After a document or a group of documents has been uploaded, confirm if there will be any more.
-4. For each document, generate **no more than four questions** based solely on its content.
+3. The information in the documents will be sent in as the role of the user, and the document is numbered in the same ordre in which they are uploaded. 
+4. For each document, generate **no more than four questions** based solely on the information provided by the user.
 5. Do not ask all questions at once. Ask two to four questions per document, depending on how much content is available, and once the student has answered them—correctly or incorrectly—proceed to the next document.
 6. **Do not use information from any external sources** to formulate questions.
 7. Correct the student's responses based on the accuracy relative to the information provided in the uploaded documents.
@@ -102,22 +104,11 @@ You are a helpful assistant that conducts content reviews based strictly on the 
 - Utilize headings, bullet points, bold text, and other HTML elements where appropriate for clarity and emphasis.
       `
     };
-
-    // Initialize conversation messages
-    let conversation = [
-      systemMessage,
-      ...messageHistory,
-      ...messages,
-      { role: 'user', content: prompt }
-    ];
-
+    console.log("message history: ", messages);
     // If file URLs are provided, include them in the context
     if (fileUrls.length > 0) {
       for (let i = 0; i < fileUrls.length; i++) {
         const fileUrl = fileUrls[i];
-        // Include the document image
-        conversation.push({ role: 'system', content: `<img src="${fileUrl}" alt="Document ${i + 1}">` });
-
         // **Image Text Extraction Section**
         const filePath = path.join(UPLOAD_DIR, path.basename(fileUrl)); // Extract filename from URL
         console.log(`Constructed file path for OCR (Image ${i + 1}):`, filePath); // Log the file path
@@ -135,7 +126,7 @@ You are a helpful assistant that conducts content reviews based strictly on the 
           imageTexts.push(imageText);
 
           // Include the extracted text in the conversation using HTML formatting
-          conversation.push({ role: 'system', content: `<strong>Content from Document ${i + 1}:</strong><br><p>${imageText}</p>` });
+          documents.push({ role: 'user', content: `<strong>Content from Document ${i + 1}:</strong><br><p>${imageText}</p>` });
           console.log(`Image text extracted successfully for Image ${i + 1}.`);
         } catch (ocrError) {
           console.error('Error during OCR processing:', ocrError);
@@ -143,9 +134,20 @@ You are a helpful assistant that conducts content reviews based strictly on the 
         }
       }
     }
+    //console.log("Our conversation:", conversation);
+    console.log("Documents: ", documents);
+
+    // Initialize conversation messages
+    let conversation = [
+      systemMessage,
+      ...messageHistory,
+      ...documents,
+      { role: 'user', content: prompt }
+    ];
+
     // Prepare the request body for OpenAI's API
     const body = {
-      model: 'gpt-4',
+      model: 'gpt-4o',
       messages: conversation,
       temperature: 0.3,
       max_tokens: 4000,

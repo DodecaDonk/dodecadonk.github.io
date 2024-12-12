@@ -21,7 +21,8 @@
 		"openai": "^4.73.1",
 		"pdf-parse": "^1.1.1",
 		"pdf2pic": "^3.1.3",
-		"pdfjs-dist": "^4.9.124",
+		"pdfjs-dist": "^4.9.155",
+		"pdftopic": "^1.0.7-alpha",
 		"sharp": "^0.33.5",
 		"tesseract.js": "^5.1.1"
 	}
