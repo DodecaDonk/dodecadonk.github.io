@@ -12,9 +12,10 @@
   let previewUrls = [];         // An array to hold preview URLs for selected files
   let uploadError = '';         // Error message for file upload
   let uploadSuccess = false;    // Success flag for file upload
+  let hasContentSent = false;   // Detects if files have been uploaded for summarize button
 
   const MAX_FILES = 5;          // Maximum number of files allowed
-  const allowedTypes = ['image/jpeg', 'image/png']; // Allowed file types
+  const allowedTypes = ['image/jpeg', 'image/png', 'application/pdf']; // Allowed file types
   const MAX_SIZE = 5 * 1024 * 1024; // 5MB per file
 
   // Function to handle file selection
@@ -25,12 +26,12 @@
     let errorMessages = [];
 
     if (files.length > MAX_FILES) {
-      errorMessages.push(`You can only upload up to ${MAX_FILES} images.`);
+      errorMessages.push(`You can only upload up to ${MAX_FILES} files.`);
     }
 
     files.slice(0, MAX_FILES).forEach(file => {
       if (!allowedTypes.includes(file.type)) {
-        errorMessages.push(`Unsupported file type: ${file.name}`);
+        errorMessages.push(`Unsupported file type: ${file.name}. Allowed types are JPEG, PNG, and PDF.`);
         return;
       }
       if (file.size > MAX_SIZE) {
@@ -38,7 +39,11 @@
         return;
       }
       validFiles.push(file);
-      previews.push(URL.createObjectURL(file));
+      if (file.type.startsWith('image/')) {
+        previews.push({ url: URL.createObjectURL(file), type: 'image' });
+      } else if (file.type === 'application/pdf') {
+        previews.push({ url: URL.createObjectURL(file), type: 'pdf' });
+      }
     });
 
     if (errorMessages.length > 0) {
@@ -54,13 +59,27 @@
   // Function to remove a selected file
   function removeFile(index) {
     // Revoke the object URL to free memory
-    URL.revokeObjectURL(previewUrls[index]);
+    URL.revokeObjectURL(previewUrls[index].url);
 
     selectedFiles.splice(index, 1);
     previewUrls.splice(index, 1);
 
     // Clear error if any
     uploadError = '';
+  }
+
+  // Function to convert Markdown-like syntax to HTML tags
+  function formatMessage(content) {
+    // Replace **text** with <strong>text</strong>
+    content = content.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+
+    // Replace `text` with <code>text</code>
+    content = content.replace(/`(.*?)`/g, '<code>$1</code>');
+
+    content = content.replace(/###(.*?)(?=\n|$)/g, '<qheader>$1</qheader>')
+
+    content = content.replace(/#+/g, '')
+    return content;
   }
 
   // Function to send the user's prompt and files to the backend and get the AI's response
@@ -76,6 +95,9 @@
       const formData = new FormData();
       formData.append('prompt', prompt);
       formData.append('messages', JSON.stringify(messages));
+
+      // Detects if files have been uploaded
+      const hasFiles = selectedFiles.length > 0;
 
       // Append all selected files to the FormData
       selectedFiles.forEach(file => {
@@ -97,7 +119,9 @@
           { role: 'user', content: prompt },
           { role: 'assistant', content: data.reply }
         ];
-        uploadSuccess = true; // Set upload success flag if applicable
+
+        uploadSuccess = hasFiles; // Set upload success flag if applicable
+        hasContentSent = true;
       } else if (data.error) {
         // Handle errors returned from the server
         messages = [
@@ -124,7 +148,49 @@
       // Reset prompt and file input
       prompt = "";
       selectedFiles = [];
-      previewUrls.forEach(url => URL.revokeObjectURL(url)); // Clean up preview URLs
+      previewUrls.forEach(file => URL.revokeObjectURL(file.url)); // Clean up preview URLs
+      previewUrls = [];
+      isLoading = false;
+    }
+  }
+
+  // ******************************************************************************************************************************************************8
+   // Function to send a summary message to the tutor
+   async function sendSummary() {
+    prompt = "I am done answering questions, give me a summary";
+    if (!prompt.trim() && selectedFiles.length === 0) return; // Prevent sending if no prompt or files
+
+    isLoading = true;
+    uploadError = '';
+    uploadSuccess = false;
+
+    try {
+      // Create a FormData object to handle multipart/form-data
+      const formData = new FormData();
+      formData.append('prompt', prompt);
+      formData.append('messages', JSON.stringify(messages));
+
+      // Send the prompt and files to the backend
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        body: formData, // Let the browser set the Content-Type to multipart/form-data
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.reply) {
+        // Add user prompt and AI reply to the conversation history
+        messages = [
+          ...messages,
+          { role: 'user', content: prompt },
+          { role: 'assistant', content: data.reply }
+        ];
+      }
+    } finally {
+      // Reset prompt and file input
+      prompt = "";
+      selectedFiles = [];
+      previewUrls.forEach(file => URL.revokeObjectURL(file.url)); // Clean up preview URLs
       previewUrls = [];
       isLoading = false;
     }
@@ -147,11 +213,13 @@
 
   // Clean up object URLs on component destroy to prevent memory leaks
   onDestroy(() => {
-    previewUrls.forEach(url => URL.revokeObjectURL(url));
+    previewUrls.forEach(file => URL.revokeObjectURL(file.url));
   });
 </script>
 
 <style>
+  @import url('https://fonts.googleapis.com/css2?family=Josefin+Sans:ital,wght@0,100..700;1,100..700&family=Open+Sans&family=Spinnaker&display=swap');
+
   /* Make sure the body and html fill the entire viewport */
   :global(html, body) {
     height: 100%;  /* Full height of the viewport */
@@ -161,16 +229,16 @@
   }
 
   .chat-container {
-    max-width: 800px;
-    margin: 20px auto;
+    max-width: 70%;
+    margin: 40px auto;
     padding: 20px;
     background-color: #ffffff;
     border-radius: 10px;
     box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
     display: flex;
-    flex-direction: column; /* Arrange items in a column */
-    height: 80vh; /* Set full screen height */
-    padding-bottom: 20px; /* Ensure there's space at the bottom */
+    flex-direction: column; 
+    height: 80vh; 
+    padding-bottom: 20px;
   }
 
   /* Center the title */
@@ -178,14 +246,41 @@
     text-align: center; /* Center the title text */
     margin-bottom: 20px; /* Add some spacing below the title */
     color: #333333;
+    font-family: "Josefin Sans", sans-serif;
   }
 
   /* Adjust the message container */
   .message-container {
-    flex-grow: 1; /* Allow the message container to take up remaining space */
-    overflow-y: auto; /* Enable scrolling when messages overflow */
-    margin-bottom: 20px;
-    padding-right: 10px; /* Add some padding to the right */
+    flex-grow: 1;
+    overflow-y: auto; 
+    overflow-x: hidden;
+    padding: 10px;
+    max-height: 100%;
+    box-sizing: border-box; 
+
+    max-width: 100%;
+    white-space: normal;
+  }
+
+  .user-message {
+    background-color: #e0f7fa;
+    align-self: flex-end;
+    margin-bottom: 10px;
+  }
+
+  .assistant-message {
+    background-color: #f1f8e9; /* light green */
+    align-self: flex-start;
+    padding: 12px 24px; 
+    border-radius: 5px; 
+    margin-bottom: 10px;
+  }
+
+  .user-message, .assistant-message {
+    padding: 12px 18px;
+    max-width: 100%;
+    width: 100%;
+    box-sizing: border-box;
   }
 
   /* Style for the "AI is thinking..." message */
@@ -201,6 +296,34 @@
     flex-direction: column;
     gap: 10px; /* Space between textarea and button */
     margin-top: 10px;
+  }
+/* 888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888 */
+  button[type="summarize"] {
+    background-color: #a1e6b1; /* Green color */
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    cursor: pointer;
+    border-radius: 5px;
+    width: 100%;
+    height: 40px;
+    font-size: 16px;
+    transition: background-color 0.3s ease;
+    margin-top: 10px; /* Add some margin for spacing */
+  }
+
+  /* Hover effect when the button is not disabled */
+  button[type="summarize"]:hover {
+    background-color: #218838; /* Darker green on hover */
+  }
+
+  /* Style for the disabled button */
+  button[type="summarize"]:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+  }
+  button[type="summarize"]:hover:not(:disabled) {
+    background-color: #16a400;
   }
 
   textarea {
@@ -239,24 +362,6 @@
     cursor: not-allowed;
   }
 
-  .user-message, .assistant-message {
-    padding: 10px;
-    border-radius: 5px;
-    margin-bottom: 10px;
-    max-width: 80%;
-    word-wrap: break-word;
-  }
-
-  .user-message {
-    background-color: #e0f7fa;
-    align-self: flex-end;
-  }
-
-  .assistant-message {
-    background-color: #f1f8e9;
-    align-self: flex-start;
-  }
-
   /* Styles for file previews and status messages */
   .previews {
     display: flex;
@@ -281,20 +386,39 @@
     object-fit: cover;
   }
 
+  .preview iframe {
+    width: 100%;
+    height: 100%;
+  }
+
+  .pdf-icon {
+    width: 100%;
+    height: 100%;
+    background-color: #e0e0e0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    color: #d32f2f;
+    font-size: 24px;
+  }
+
   .remove-button {
     position: absolute;
     top: 5px;
     right: 5px;
-    background-color: rgba(255, 0, 0, 0.7);
+    background-color: rgba(255, 0, 0, 0.8);
     border: none;
     color: white;
     border-radius: 50%;
-    width: 25px;
-    height: 25px;
+    width: 30px;
+    height: 30px;
     cursor: pointer;
     font-weight: bold;
-    line-height: 25px;
-    text-align: center;
+    font-size: 20px;
+    display: flex; 
+    align-items: center; 
+    justify-content: center; 
   }
 
   .upload-status {
@@ -308,17 +432,53 @@
     font-weight: bold;
     color: red;
   }
+
+  pre {
+    font-family: 'Lato', sans-serif;
+    font-weight: 100;
+    font-style: normal;
+    color: #575757; /* Set the text color */
+    padding: 10px; /* Add some padding inside the pre tag */
+    border-radius: 5px; /* Add rounded corners */
+    white-space: pre-wrap; /* Maintain line breaks and spaces but allow wrapping */
+  }
+  /* Customize bold text */
+  strong {
+    font-weight: bold; /* Ensure bold text stays bold */
+  }
+
+  /* Customize inline code */
+  code {
+    font-family: 'Courier New', monospace; /* Keep code in monospace */
+    font-size: 30px !important;
+    font-weight: bold;
+    background-color: #e0e0e0;
+    border-radius: 80%;
+  }
+
+  qheader {
+    font-style: italic;
+    font-weight: bold;
+  }
 </style>
 
 <div class="chat-container">
   <h1>SvelteGPT - Your AI Tutor</h1>
 
   <!-- Displaying the conversation messages -->
+  <!-- <div class="message-container" bind:this={messageContainer}>
+    {#each messages as { role, content }}
+      <div class={role === 'user' ? 'user-message' : 'assistant-message'}>
+        <strong>{role === 'user' ? 'You' : 'Tutor'}:</strong>
+        <pre>{content}</pre>
+      </div>
+    {/each}
+  </div> -->
   <div class="message-container" bind:this={messageContainer}>
     {#each messages as { role, content }}
       <div class={role === 'user' ? 'user-message' : 'assistant-message'}>
         <strong>{role === 'user' ? 'You' : 'Tutor'}:</strong>
-        <p>{content}</p>
+        <pre>{@html formatMessage(content)}</pre> <!-- Use the formatted message -->
       </div>
     {/each}
   </div>
@@ -340,15 +500,23 @@
       ></textarea>
 
       <!-- File Upload Section -->
-      <label for="file">Attach images:</label>
-      <input type="file" id="file" accept="image/jpeg,image/png" multiple on:change={handleFileChange} />
+      <label for="file">Attach images or PDFs:</label>
+      <input type="file" id="file" accept="image/jpeg,image/png,application/pdf" multiple on:change={handleFileChange} />
 
       <!-- Display Previews of Selected Files -->
       {#if previewUrls.length > 0}
         <div class="previews">
-          {#each previewUrls as url, index}
+          {#each previewUrls as file, index}
             <div class="preview">
-              <img src={url} alt={`Selected Image ${index + 1}`} />
+              {#if file.type === 'image'}
+                <img src={file.url} alt={`Selected Image ${index + 1}`} />
+              {:else if file.type === 'pdf'}
+                <!-- Option 1: Display PDF using iframe -->
+                <iframe src={file.url} title={`Selected PDF ${index + 1}`} sandbox></iframe>
+
+                <!-- Option 2: Display a PDF icon -->
+                <!-- <div class="pdf-icon">PDF</div> -->
+              {/if}
               <button type="button" class="remove-button" on:click={() => removeFile(index)}>×</button>
             </div>
           {/each}
@@ -367,6 +535,7 @@
       <button type="submit" disabled={isLoading || (prompt.trim() === "" && selectedFiles.length === 0)}>
         {isLoading ? 'Processing...' : 'Send'}
       </button>
+      <button type="summarize" on:click={sendSummary} disabled={!hasContentSent}> Summarize </button>
     </form>
   </div>
 </div>
