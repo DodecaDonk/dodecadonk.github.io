@@ -1,12 +1,25 @@
-const pdfjsLib = require("pdfjs-dist");
+// src/routes/api/chat/pdfExport.js
 
-async function GetTextFromPDF(path) {
-    let doc = await pdfjsLib.getDocument(path).promise;
-    let page1 = await doc.getPage(1);
-    let content = await page1.getTextContent();
-    let strings = content.items.map(function(item) {
-        return item.str;
-    });
-    return strings;
+import fs from 'fs';
+import pdfParse from 'pdf-parse/lib/pdf-parse'
+
+
+/**
+ * Extracts text from a PDF file.
+ * @param {string} filePath - The absolute path to the PDF file.
+ * @returns {Promise<string>} - The extracted text content.
+ */
+export async function GetTextFromPDF(filePath) {
+    try {
+        // Read the PDF file into a buffer
+        const dataBuffer = fs.readFileSync(filePath);
+        
+        // Parse the PDF buffer to extract text
+        const data = await pdfParse(dataBuffer);
+        
+        return data.text;
+    } catch (error) {
+        console.error('Error extracting text from PDF:', error);
+        throw error; // Re-throw the error to be handled by the caller
+    }
 }
-module.exports = { GetTextFromPDF }

@@ -25,12 +25,12 @@
     let errorMessages = [];
 
     if (files.length > MAX_FILES) {
-      errorMessages.push(`You can only upload up to ${MAX_FILES} images.`);
+      errorMessages.push(`You can only upload up to ${MAX_FILES} files.`);
     }
 
     files.slice(0, MAX_FILES).forEach(file => {
       if (!allowedTypes.includes(file.type)) {
-        errorMessages.push(`Unsupported file type: ${file.name}`);
+        errorMessages.push(`Unsupported file type: ${file.name}. Allowed types are JPEG, PNG, and PDF.`);
         return;
       }
       if (file.size > MAX_SIZE) {
@@ -38,7 +38,11 @@
         return;
       }
       validFiles.push(file);
-      previews.push(URL.createObjectURL(file));
+      if (file.type.startsWith('image/')) {
+        previews.push({ url: URL.createObjectURL(file), type: 'image' });
+      } else if (file.type === 'application/pdf') {
+        previews.push({ url: URL.createObjectURL(file), type: 'pdf' });
+      }
     });
 
     if (errorMessages.length > 0) {
@@ -54,7 +58,7 @@
   // Function to remove a selected file
   function removeFile(index) {
     // Revoke the object URL to free memory
-    URL.revokeObjectURL(previewUrls[index]);
+    URL.revokeObjectURL(previewUrls[index].url);
 
     selectedFiles.splice(index, 1);
     previewUrls.splice(index, 1);
@@ -124,7 +128,7 @@
       // Reset prompt and file input
       prompt = "";
       selectedFiles = [];
-      previewUrls.forEach(url => URL.revokeObjectURL(url)); // Clean up preview URLs
+      previewUrls.forEach(file => URL.revokeObjectURL(file.url)); // Clean up preview URLs
       previewUrls = [];
       isLoading = false;
     }
@@ -147,7 +151,7 @@
 
   // Clean up object URLs on component destroy to prevent memory leaks
   onDestroy(() => {
-    previewUrls.forEach(url => URL.revokeObjectURL(url));
+    previewUrls.forEach(file => URL.revokeObjectURL(file.url));
   });
 </script>
 
@@ -182,36 +186,34 @@
 
   /* Adjust the message container */
   .message-container {
-  flex-grow: 1;
-  overflow-y: auto; 
-  overflow-x: auto;
-  padding: 10px;
-  max-height: 100%;
-  box-sizing: border-box; 
-}
+    flex-grow: 1;
+    overflow-y: auto; 
+    overflow-x: auto;
+    padding: 10px;
+    max-height: 100%;
+    box-sizing: border-box; 
+  }
 
-.assistant-message {
-  background-color: #f1f8e9; /* light green */
-  align-self: flex-start;
-  padding: 12px 24px; 
-  border-radius: 5px; 
-  max-width: max-content; 
-  min-width: 50%; 
-  white-space: pre-wrap; 
-  overflow: auto; 
-  box-sizing: border-box; 
-}
+  .assistant-message {
+    background-color: #f1f8e9; /* light green */
+    align-self: flex-start;
+    padding: 12px 24px; 
+    border-radius: 5px; 
+    max-width: max-content; 
+    min-width: 50%; 
+    white-space: pre-wrap; 
+    overflow: auto; 
+    box-sizing: border-box; 
+  }
 
-.user-message, .assistant-message {
-  padding: 10px;
-  border-radius: 5px;
-  margin-bottom: 10px;
-  max-width: 90%; 
-  word-wrap: break-word;
-  white-space: pre-wrap;
-}
-
-
+  .user-message, .assistant-message {
+    padding: 10px;
+    border-radius: 5px;
+    margin-bottom: 10px;
+    max-width: 90%; 
+    word-wrap: break-word;
+    white-space: pre-wrap;
+  }
 
   /* Style for the "AI is thinking..." message */
   .loading {
@@ -264,13 +266,10 @@
     cursor: not-allowed;
   }
 
-
   .user-message {
     background-color: #e0f7fa;
     align-self: flex-end;
   }
-
-
 
   /* Styles for file previews and status messages */
   .previews {
@@ -296,22 +295,39 @@
     object-fit: cover;
   }
 
+  .preview iframe {
+    width: 100%;
+    height: 100%;
+  }
+
+  .pdf-icon {
+    width: 100%;
+    height: 100%;
+    background-color: #e0e0e0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    color: #d32f2f;
+    font-size: 24px;
+  }
+
   .remove-button {
-  position: absolute;
-  top: 5px;
-  right: 5px;
-  background-color: rgba(255, 0, 0, 0.8);
-  border: none;
-  color: white;
-  border-radius: 50%;
-  width: 30px;
-  height: 30px;
-  cursor: pointer;
-  font-weight: bold;
-  font-size: 20px;
-  display: flex; 
-  align-items: center; 
-  justify-content: center; 
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    background-color: rgba(255, 0, 0, 0.8);
+    border: none;
+    color: white;
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 20px;
+    display: flex; 
+    align-items: center; 
+    justify-content: center; 
   }
 
   .upload-status {
@@ -333,12 +349,11 @@
   <!-- Displaying the conversation messages -->
   <div class="message-container" bind:this={messageContainer}>
     {#each messages as { role, content }}
-    <div class={role === 'user' ? 'user-message' : 'assistant-message'}>
-    <strong>{role === 'user' ? 'You' : 'Tutor'}:</strong>
-    <pre>{content}</pre>
-  </div>
-{/each}
-
+      <div class={role === 'user' ? 'user-message' : 'assistant-message'}>
+        <strong>{role === 'user' ? 'You' : 'Tutor'}:</strong>
+        <pre>{content}</pre>
+      </div>
+    {/each}
   </div>
 
   <!-- Loading state message -->
@@ -358,15 +373,23 @@
       ></textarea>
 
       <!-- File Upload Section -->
-      <label for="file">Attach images:</label>
-      <input type="file" id="file" accept="image/jpeg,image/png" multiple on:change={handleFileChange} />
+      <label for="file">Attach images or PDFs:</label>
+      <input type="file" id="file" accept="image/jpeg,image/png,application/pdf" multiple on:change={handleFileChange} />
 
       <!-- Display Previews of Selected Files -->
       {#if previewUrls.length > 0}
         <div class="previews">
-          {#each previewUrls as url, index}
+          {#each previewUrls as file, index}
             <div class="preview">
-              <img src={url} alt={`Selected Image ${index + 1}`} />
+              {#if file.type === 'image'}
+                <img src={file.url} alt={`Selected Image ${index + 1}`} />
+              {:else if file.type === 'pdf'}
+                <!-- Option 1: Display PDF using iframe -->
+                <iframe src={file.url} title={`Selected PDF ${index + 1}`} sandbox></iframe>
+
+                <!-- Option 2: Display a PDF icon -->
+                <!-- <div class="pdf-icon">PDF</div> -->
+              {/if}
               <button type="button" class="remove-button" on:click={() => removeFile(index)}>×</button>
             </div>
           {/each}
