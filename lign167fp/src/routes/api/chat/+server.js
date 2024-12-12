@@ -15,6 +15,8 @@ if (!fs.existsSync(UPLOAD_DIR)) {
   fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 }
 
+let documents = [];
+
 const sessionStore = {}; // Key: sessionId, Value: { documents: [], messages: [] }
 
 // Define maximum limits
@@ -53,7 +55,6 @@ export const POST = async ({ request }) => {
     // Initialize session data if not present
     if (!sessionStore[sessionId]) {
       sessionStore[sessionId] = {
-        documents: [],
         messages: []
       };
     }
@@ -120,7 +121,8 @@ export const POST = async ({ request }) => {
       content: `
 You are a helpful assistant that conducts content reviews based strictly on the information provided in the documents uploaded by the student.
 
-**Guidelines if you have received a single document:**
+**Guidelines if you have received an image**
+You will know if you have received an image as it will state "Content from Image #"
 1. Style your responses as if you were a teacher.
 2. **Do not ask any questions until at least one document is available.**
 3. The information in the documents will be sent in as the role of the user, and the document is numbered in the same order in which they are uploaded. 
@@ -132,19 +134,21 @@ You are a helpful assistant that conducts content reviews based strictly on the 
 9. If the student replies that they do not know the answer to the question, give them the answer.
 10. At the end of the session, provide a **summary** highlighting areas the student should improve on based on their incorrect responses, and point out areas where they did well!.
 
-**Guidelines if you have received a larger document (4000+ tokens):**
+**Guidelines if you have received a PDF**
+You will know if you have received a PDF as it will state "Content from Slide #"
 1. Style your responses as if you were a teacher.
-2. Identify which slide the information is on.
-3. Do not ask information about any URLs or news, skip the first few slides making any such references.
+2. Begin each question by displaying which slide the question comes from. 
+3. Do not ask information about any URLs or news, skip the first few slides making any such references. Do not ask information about the reading guide, skip the last slide making any such references. Skip any slides that do not have any definitions for the keywords they show.
+4. If the student does not specify which topics they wish to go over, ask 10 questions related to the slides. 
+5. In the event that the student does specify which topics they wish to go over, ask questions related to that topic. You do not need to ask 10 questions, but at least 4 related to that topic. The questions should be based off the information in the document.
+6. Do not ask questions that require the student to refer back to the slides. The questions should be able to answered off of memory and reasoning alone.
+7. If a student asks for the content of a certain slide, give them a summary of what the slide contains. Ask them if they would like to answer a question based on that slide, and if yes, ask them 2 questions regarding the content of the specified slide.
+8. Once all the slides have been exhausted, give a summary of the student's progress for this session based on the incorrect answers they gave, and make recommendations to continue working on those topics.
 
 **Response Formatting:**
 - Utilize headings, bullet points, bold text, and other HTML elements where appropriate for clarity and emphasis.
       `
     };
-    console.log("message history: ", messages);
-
-    // Initialize documents array for this request
-    let documents = [];
 
     // If file URLs are provided, include them in the context
     if (fileUrls.length > 0) {
@@ -168,7 +172,7 @@ You are a helpful assistant that conducts content reviews based strictly on the 
             const { data: { text } } = await Tesseract.recognize(filePath, 'eng', { logger: m => console.log(m) });
             const imageText = text.trim();
             // Include the extracted text in the conversation using HTML formatting
-            documents.push({ role: 'user', content: `<strong>Content from Slide ${i + 1}:</strong><br><p>${imageText}</p>` });
+            documents.push({ role: 'user', content: `<strong>Content from Image ${i + 1}:</strong><br><p>${imageText}</p>` });
             console.log(`Image text extracted successfully for Image ${i + 1}.`);
           } catch (ocrError) {
             console.error('Error during OCR processing:', ocrError);
@@ -206,15 +210,8 @@ You are a helpful assistant that conducts content reviews based strictly on the 
           }
         }
       }
-
-      // Save documents to the session store
-      sessionStore[sessionId].documents = sessionStore[sessionId].documents.concat(documents);
-
-      // Trim documents if necessary
-      sessionStore[sessionId].documents = trimDocuments(sessionStore[sessionId].documents);
     }
 
-    console.log("Documents: ", sessionStore[sessionId].documents);
 
     // After parsing messages from the request, assign to messageHistory
     messageHistory = messages || [];
@@ -229,9 +226,11 @@ You are a helpful assistant that conducts content reviews based strictly on the 
     let conversation = [
       systemMessage,
       ...sessionStore[sessionId].messages, // Only include trimmed message history
-      ...sessionStore[sessionId].documents,
+      ...documents,
       { role: 'user', content: prompt }
     ];
+    
+    console.log("Conversation to send: ", conversation);
 
     // Prepare the request body for OpenAI's API
     const body = {
