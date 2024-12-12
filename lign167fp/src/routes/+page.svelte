@@ -168,9 +168,9 @@
     border-radius: 10px;
     box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
     display: flex;
-    flex-direction: column; /* Arrange items in a column */
-    height: 80vh; /* Set full screen height */
-    padding-bottom: 20px; /* Ensure there's space at the bottom */
+    flex-direction: column; 
+    height: 80vh; 
+    padding-bottom: 20px;
   }
 
   /* Center the title */
@@ -184,10 +184,34 @@
   .message-container {
   flex-grow: 1;
   overflow-y: auto; 
+  overflow-x: auto;
   padding: 10px;
-  max-height: 100%; 
+  max-height: 100%;
   box-sizing: border-box; 
 }
+
+.assistant-message {
+  background-color: #f1f8e9; /* light green */
+  align-self: flex-start;
+  padding: 12px 24px; 
+  border-radius: 5px; 
+  max-width: max-content; 
+  min-width: 50%; 
+  white-space: pre-wrap; 
+  overflow: auto; 
+  box-sizing: border-box; 
+}
+
+.user-message, .assistant-message {
+  padding: 10px;
+  border-radius: 5px;
+  margin-bottom: 10px;
+  max-width: 90%; 
+  word-wrap: break-word;
+  white-space: pre-wrap;
+}
+
+
 
   /* Style for the "AI is thinking..." message */
   .loading {
@@ -240,31 +264,12 @@
     cursor: not-allowed;
   }
 
-  .user-message, .assistant-message {
-    padding: 10px;
-    border-radius: 5px;
-    margin-bottom: 10px;
-    max-width: 80%;
-    word-wrap: break-word;
-  }
 
   .user-message {
     background-color: #e0f7fa;
     align-self: flex-end;
   }
 
-  .assistant-message {
-  background-color: #f1f8e9; /* light green */
-  align-self: flex-start;
-  padding: 10px; 
-  border-radius: 5px; 
-  width: auto; 
-  max-width: 100%; 
-  word-wrap: break-word; 
-  white-space: pre-wrap; 
-  box-sizing: border-box; 
-  overflow: visible;
-}
 
 
   /* Styles for file previews and status messages */
@@ -292,19 +297,21 @@
   }
 
   .remove-button {
-    position: absolute;
-    top: 5px;
-    right: 5px;
-    background-color: rgba(255, 0, 0, 0.7);
-    border: none;
-    color: white;
-    border-radius: 50%;
-    width: 25px;
-    height: 25px;
-    cursor: pointer;
-    font-weight: bold;
-    line-height: 25px;
-    text-align: center;
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  background-color: rgba(255, 0, 0, 0.8);
+  border: none;
+  color: white;
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 20px;
+  display: flex; 
+  align-items: center; 
+  justify-content: center; 
   }
 
   .upload-status {
