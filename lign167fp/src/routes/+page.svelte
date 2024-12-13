@@ -7,17 +7,23 @@
   let isLoading = false;        // A flag to show loading state
   let messageContainer;         // The container that holds the messages
 
-  // Variables for multiple file uploads
+  // Updated variables for multiple file uploads
   let selectedFiles = [];       // An array to hold selected files
   let previewUrls = [];         // An array to hold preview URLs for selected files
   let uploadError = '';         // Error message for file upload
   let uploadSuccess = false;    // Success flag for file upload
-  let hasContentSent = false;   // Detects if files have been uploaded for summarize button
+  let hasContentSent = false;   // Flag for summarize button
+  let fileUploader;             // Bindings for clearing the file upload text
+  let uploadArea;               // ^
+  let fileValue;                // ^
 
   const MAX_FILES = 5;          // Maximum number of files allowed
   const allowedTypes = ['image/jpeg', 'image/png', 'application/pdf']; // Allowed file types
-  let fileValue = '';           // Bindings for clearing the file upload text
   const MAX_SIZE = 10 * 1024 * 1024; // 10MB per file
+
+  onMount(() => {
+    fileUploader = uploadArea.querySelector('.file'); //binds the uploader
+  });
 
   // Function to handle file selection
   function handleFileChange(event) {
@@ -36,7 +42,7 @@
         return;
       }
       if (file.size > MAX_SIZE) {
-        errorMessages.push(`File size exceeds 10MB: ${file.name}`);
+        errorMessages.push(`File size exceeds 5MB: ${file.name}`);
         return;
       }
       validFiles.push(file);
@@ -77,11 +83,9 @@
     // Replace `text` with <code>text</code>
     content = content.replace(/`(.*?)`/g, '<code>$1</code>');
 
-    // Replace ### Header with <qheader>Header</qheader>
-    content = content.replace(/###(.*?)(?=\n|$)/g, '<qheader>$1</qheader>');
+    content = content.replace(/###(.*?)(?=\n|$)/g, '<qheader>$1</qheader>')
 
-    // Remove remaining # characters
-    content = content.replace(/#+/g, '');
+    content = content.replace(/#+/g, '')
     return content;
   }
 
@@ -154,77 +158,12 @@
       previewUrls.forEach(file => URL.revokeObjectURL(file.url)); // Clean up preview URLs
       previewUrls = [];
       isLoading = false;
-      fileValue = ''; // Clear the file input
     }
   }
 
-  // Function to send a summary message to the tutor
-  async function sendSummary() {
-    const summaryPrompt = "I am done answering questions, give me a summary";
-    if (!summaryPrompt.trim() && selectedFiles.length === 0) return; // Prevent sending if no prompt or files
-
-    isLoading = true;
-    uploadError = '';
-    uploadSuccess = false;
-
-    try {
-      // Create a FormData object to handle multipart/form-data
-      const formData = new FormData();
-      formData.append('prompt', summaryPrompt);
-      formData.append('messages', JSON.stringify(messages));
-
-      // Append all selected files to the FormData (if any)
-      selectedFiles.forEach(file => {
-        formData.append('file', file);
-      });
-
-      // Send the prompt and files to the backend
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        body: formData, // Let the browser set the Content-Type to multipart/form-data
-      });
-
-      const data = await response.json();
-
-      if (response.ok && data.reply) {
-        // Add user prompt and AI reply to the conversation history
-        messages = [
-          ...messages,
-          { role: 'user', content: summaryPrompt },
-          { role: 'assistant', content: data.reply }
-        ];
-        hasContentSent = true;
-      } else if (data.error) {
-        // Handle errors returned from the server
-        messages = [
-          ...messages,
-          { role: 'system', content: `Error: ${data.error}` }
-        ];
-        uploadError = data.error;
-      } else {
-        // Handle generic errors
-        messages = [
-          ...messages,
-          { role: 'system', content: "Sorry, something went wrong!" }
-        ];
-        uploadError = "Sorry, something went wrong!";
-      }
-    } catch (error) {
-      // Handle unexpected errors
-      messages = [
-        ...messages,
-        { role: 'system', content: `Unexpected Error: ${error.message}` }
-      ];
-      uploadError = error.message || 'An unexpected error occurred.';
-    } finally {
-      // Reset prompt and file input
-      prompt = "";
-      selectedFiles = [];
-      previewUrls.forEach(file => URL.revokeObjectURL(file.url)); // Clean up preview URLs
-      previewUrls = [];
-      isLoading = false;
-      fileValue = ''; // Clear the file input
-    }
+   // Function to send a summary message to the tutor
+   async function sendSummary() {
+    prompt = "I am done answering questions, give me a summary";
   }
 
   // Handle the Enter key press to send the prompt
@@ -257,6 +196,7 @@
     margin: 0;     /* Remove default margin */
     overflow: hidden;  /* Disable scrolling on the entire page */
     font-family: Arial, sans-serif;
+    background-color: #e1ecff;
   }
 
   .chat-container {
@@ -270,11 +210,19 @@
     flex-direction: column; 
     height: 80vh; 
     padding-bottom: 20px;
+    background-color: #f8fbff;
   }
 
   /* Center the title */
   h1 {
     text-align: center; /* Center the title text */
+    margin-bottom: 2px; /* Add some spacing below the title */
+    color: #333333;
+    font-family: "Josefin Sans", sans-serif;
+  }
+  h2 {
+    text-align: center; /* Center the title text */
+    font-size: 18px;
     margin-bottom: 20px; /* Add some spacing below the title */
     color: #333333;
     font-family: "Josefin Sans", sans-serif;
@@ -292,28 +240,30 @@
     white-space: normal;
   }
 
-  .user-message, .assistant-message {
-    padding: 10px;
-    border-radius: 5px;
-    margin-bottom: 10px;
-    max-width: 90%; 
-    word-wrap: break-word;
-    white-space: pre-wrap;
-  }
-
   .user-message {
-    background-color: #e0f7fa;
+    background-color: rgb(231, 239, 249);
     align-self: flex-end;
+    margin-bottom: 10px;
   }
 
   .assistant-message {
-    background-color: #f1f8e9; /* light green */
+    background-color: #eaffe7; /* light green */
     align-self: flex-start;
+    padding: 12px 24px; 
+    border-radius: 5px; 
+    margin-bottom: 10px;
+  }
+
+  .user-message, .assistant-message {
+    padding: 12px 18px;
+    max-width: 100%;
+    width: 100%;
+    box-sizing: border-box;
   }
 
   /* Style for the "AI is thinking..." message */
   .loading {
-    color: gray;
+    color: rgb(121, 121, 121);
     text-align: center;
     margin-bottom: 10px;
   }
@@ -327,7 +277,7 @@
   }
 
   button[type="summarize"] {
-    background-color: #a1e6b1; 
+    background-color: rgb(152, 230, 170); /* Green color */
     color: white;
     padding: 10px 20px;
     border: none;
@@ -337,14 +287,15 @@
     height: 40px;
     font-size: 16px;
     transition: background-color 0.3s ease;
-    margin-top: 10px; 
+    margin-top: 10px; /* Add some margin for spacing */
   }
 
+  /* Hover effect when the button is not disabled */
   button[type="summarize"]:hover {
-    background-color: #218838; 
+    background-color: #249f3f; /* Darker green on hover */
   }
 
-
+  /* Style for the disabled button */
   button[type="summarize"]:disabled {
     background-color: #ccc;
     cursor: not-allowed;
@@ -354,14 +305,14 @@
   }
 
   textarea {
-    width: 100%;
+    font-family: 'Lato', sans-serif;
+    width: 97.2%;
     padding: 10px;   /* Reduced padding for a more compact input box */
     border-radius: 5px;
     border: 1px solid #ccc;
     font-size: 14px;
     resize: none; /* Prevent resizing */
     height: 80px;  /* Set a specific height */
-    box-sizing: border-box;
   }
 
   input[type="file"] {
@@ -369,7 +320,7 @@
   }
 
   button {
-    background-color: #007bff;
+    background-color: #586fff;
     color: white;
     padding: 10px 20px;
     border: none;
@@ -419,6 +370,18 @@
     height: 100%;
   }
 
+  .pdf-icon {
+    width: 100%;
+    height: 100%;
+    background-color: #e0e0e0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    color: #d32f2f;
+    font-size: 24px;
+  }
+
   .remove-button {
     position: absolute;
     top: 5px;
@@ -451,23 +414,38 @@
 
   pre {
     font-family: 'Lato', sans-serif;
-    font-weight: 100;
+    font-weight: 50;
     font-style: normal;
     color: #575757; /* Set the text color */
     padding: 10px; /* Add some padding inside the pre tag */
     border-radius: 5px; /* Add rounded corners */
     white-space: pre-wrap; /* Maintain line breaks and spaces but allow wrapping */
   }
-
   /* Customize bold text */
   strong {
     font-weight: bold; /* Ensure bold text stays bold */
   }
 
+  /* Customize inline code */
+  code {
+    font-family: 'Courier New', monospace; /* Keep code in monospace */
+    font-size: 30px !important;
+    font-weight: bold;
+    background-color: #e0e0e0;
+    border-radius: 80%;
+  }
+
+  qheader {
+    font-style: italic;
+    font-weight: bold;
+  }
 </style>
 
 <div class="chat-container">
   <h1>SvelteGPT - Your AI Tutor</h1>
+  {#if !hasContentSent}
+    <h2>Begin by uploading any files you'd like me to assist you with!</h2>
+  {/if}
 
   <!-- Displaying the conversation messages -->
   <div class="message-container" bind:this={messageContainer}>
@@ -475,38 +453,32 @@
       <div class={role === 'user' ? 'user-message' : 'assistant-message'}>
         <strong>{role === 'user' ? 'You' : 'Tutor'}:</strong>
         <pre>{@html formatMessage(content)}</pre> <!-- Use the formatted message -->
-        <!-- Removed the duplicate raw content rendering -->
       </div>
     {/each}
   </div>
 
   <!-- Loading state message -->
   {#if isLoading}
-    <p class="loading">thinking...</p>
+    <p class="loading">Thinking...</p>
   {/if}
 
   <!-- Chat Input Form -->
   <div class="chat-input">
     <form on:submit|preventDefault={sendPrompt}>
-      <label for="prompt">Your question:</label>
+      <label for="prompt">
+        {hasContentSent ? '' : 'Your question:'}
+      </label>
       <textarea
         id="prompt"
         bind:value={prompt}
-        placeholder="Ask your question here..."
+        placeholder={hasContentSent ? 'Write your answers here...' : "Ask your question here..."}
         on:keydown={handleKeyPress}
       ></textarea>
 
-      <!-- File Upload Section -->
+      <!-- File Upload Section -->      
       <div bind:this={uploadArea}>
         <label for="file">Attach images or PDFs:</label>
-        <input
-          type="file"
-          bind:value={fileValue}
-          id="file"
-          accept="image/jpeg,image/png,application/pdf"
-          multiple
-          on:change={handleFileChange}
-        />
+        <input type="file" bind:value={fileValue} id="file" accept="image/jpeg,image/png,application/pdf" multiple on:change={handleFileChange} />
       </div>
 
       <!-- Display Previews of Selected Files -->
@@ -541,9 +513,7 @@
       <button type="submit" disabled={isLoading || (prompt.trim() === "" && selectedFiles.length === 0)}>
         {isLoading ? 'Processing...' : 'Send'}
       </button>
-      <button type="button" on:click={sendSummary} disabled={!hasContentSent}>
-        Summarize
-      </button>
+      <button type="summarize" on:click={sendSummary} disabled={!hasContentSent}> Summarize </button>
     </form>
   </div>
 </div>
