@@ -327,7 +327,7 @@
   }
 
   button[type="summarize"] {
-    background-color: #a1e6b1; /* Green color */
+    background-color: #a1e6b1; 
     color: white;
     padding: 10px 20px;
     border: none;
@@ -337,15 +337,14 @@
     height: 40px;
     font-size: 16px;
     transition: background-color 0.3s ease;
-    margin-top: 10px; /* Add some margin for spacing */
+    margin-top: 10px; 
   }
 
-  /* Hover effect when the button is not disabled */
   button[type="summarize"]:hover {
-    background-color: #218838; /* Darker green on hover */
+    background-color: #218838; 
   }
 
-  /* Style for the disabled button */
+
   button[type="summarize"]:disabled {
     background-color: #ccc;
     cursor: not-allowed;
@@ -420,18 +419,6 @@
     height: 100%;
   }
 
-  .pdf-icon {
-    width: 100%;
-    height: 100%;
-    background-color: #e0e0e0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: bold;
-    color: #d32f2f;
-    font-size: 24px;
-  }
-
   .remove-button {
     position: absolute;
     top: 5px;
@@ -475,15 +462,6 @@
   /* Customize bold text */
   strong {
     font-weight: bold; /* Ensure bold text stays bold */
-  }
-
-  /* Customize inline code */
-  code {
-    font-family: 'Courier New', monospace; /* Keep code in monospace */
-    font-size: 30px !important;
-    font-weight: bold;
-    background-color: #e0e0e0;
-    border-radius: 80%;
   }
 
 </style>
