@@ -7,7 +7,7 @@
   let isLoading = false;        // A flag to show loading state
   let messageContainer;         // The container that holds the messages
 
-  // Updated variables for multiple file uploads
+  // Variables for multiple file uploads
   let selectedFiles = [];       // An array to hold selected files
   let previewUrls = [];         // An array to hold preview URLs for selected files
   let uploadError = '';         // Error message for file upload
@@ -16,18 +16,8 @@
 
   const MAX_FILES = 5;          // Maximum number of files allowed
   const allowedTypes = ['image/jpeg', 'image/png', 'application/pdf']; // Allowed file types
-  const MAX_SIZE = 5 * 1024 * 1024; // 5MB per file
-  let fileUploader;             // Bindings for clearing the file upload text
-  let uploadArea;               // ^
-  let fileValue;                // ^
-
-  const MAX_FILES = 5;          // Maximum number of files allowed
-  const allowedTypes = ['image/jpeg', 'image/png', 'application/pdf']; // Allowed file types
+  let fileValue = '';           // Bindings for clearing the file upload text
   const MAX_SIZE = 10 * 1024 * 1024; // 10MB per file
-
-  onMount(() => {
-    fileUploader = uploadArea.querySelector('.file'); //binds the uploader
-  });
 
   // Function to handle file selection
   function handleFileChange(event) {
@@ -46,7 +36,7 @@
         return;
       }
       if (file.size > MAX_SIZE) {
-        errorMessages.push(`File size exceeds 5MB: ${file.name}`);
+        errorMessages.push(`File size exceeds 10MB: ${file.name}`);
         return;
       }
       validFiles.push(file);
@@ -87,9 +77,11 @@
     // Replace `text` with <code>text</code>
     content = content.replace(/`(.*?)`/g, '<code>$1</code>');
 
-    content = content.replace(/###(.*?)(?=\n|$)/g, '<qheader>$1</qheader>')
+    // Replace ### Header with <qheader>Header</qheader>
+    content = content.replace(/###(.*?)(?=\n|$)/g, '<qheader>$1</qheader>');
 
-    content = content.replace(/#+/g, '')
+    // Remove remaining # characters
+    content = content.replace(/#+/g, '');
     return content;
   }
 
@@ -162,13 +154,14 @@
       previewUrls.forEach(file => URL.revokeObjectURL(file.url)); // Clean up preview URLs
       previewUrls = [];
       isLoading = false;
+      fileValue = ''; // Clear the file input
     }
   }
 
-   // Function to send a summary message to the tutor
-   async function sendSummary() {
-    prompt = "I am done answering questions, give me a summary";
-    if (!prompt.trim() && selectedFiles.length === 0) return; // Prevent sending if no prompt or files
+  // Function to send a summary message to the tutor
+  async function sendSummary() {
+    const summaryPrompt = "I am done answering questions, give me a summary";
+    if (!summaryPrompt.trim() && selectedFiles.length === 0) return; // Prevent sending if no prompt or files
 
     isLoading = true;
     uploadError = '';
@@ -177,8 +170,13 @@
     try {
       // Create a FormData object to handle multipart/form-data
       const formData = new FormData();
-      formData.append('prompt', prompt);
+      formData.append('prompt', summaryPrompt);
       formData.append('messages', JSON.stringify(messages));
+
+      // Append all selected files to the FormData (if any)
+      selectedFiles.forEach(file => {
+        formData.append('file', file);
+      });
 
       // Send the prompt and files to the backend
       const response = await fetch('/api/chat', {
@@ -192,10 +190,32 @@
         // Add user prompt and AI reply to the conversation history
         messages = [
           ...messages,
-          { role: 'user', content: prompt },
+          { role: 'user', content: summaryPrompt },
           { role: 'assistant', content: data.reply }
         ];
+        hasContentSent = true;
+      } else if (data.error) {
+        // Handle errors returned from the server
+        messages = [
+          ...messages,
+          { role: 'system', content: `Error: ${data.error}` }
+        ];
+        uploadError = data.error;
+      } else {
+        // Handle generic errors
+        messages = [
+          ...messages,
+          { role: 'system', content: "Sorry, something went wrong!" }
+        ];
+        uploadError = "Sorry, something went wrong!";
       }
+    } catch (error) {
+      // Handle unexpected errors
+      messages = [
+        ...messages,
+        { role: 'system', content: `Unexpected Error: ${error.message}` }
+      ];
+      uploadError = error.message || 'An unexpected error occurred.';
     } finally {
       // Reset prompt and file input
       prompt = "";
@@ -203,9 +223,7 @@
       previewUrls.forEach(file => URL.revokeObjectURL(file.url)); // Clean up preview URLs
       previewUrls = [];
       isLoading = false;
-
-      fileValue = ''; //clears the file value text
-      console.log(fileValue);
+      fileValue = ''; // Clear the file input
     }
   }
 
@@ -270,39 +288,8 @@
     padding: 10px;
     max-height: 100%;
     box-sizing: border-box; 
-
     max-width: 100%;
     white-space: normal;
-  }
-
-  .user-message {
-    background-color: #e0f7fa;
-    align-self: flex-end;
-    margin-bottom: 10px;
-    overflow-x: auto;
-    padding: 10px;
-    max-height: 100%;
-    box-sizing: border-box; 
-  }
-
-  .assistant-message {
-    background-color: #f1f8e9; /* light green */
-    align-self: flex-start;
-    padding: 12px 24px; 
-    border-radius: 5px; 
-    margin-bottom: 10px;
-  }
-
-  .user-message, .assistant-message {
-    padding: 12px 18px;
-    max-width: 100%;
-    width: 100%;
-    box-sizing: border-box;
-    max-width: max-content; 
-    min-width: 50%; 
-    white-space: pre-wrap; 
-    overflow: auto; 
-    box-sizing: border-box; 
   }
 
   .user-message, .assistant-message {
@@ -312,6 +299,16 @@
     max-width: 90%; 
     word-wrap: break-word;
     white-space: pre-wrap;
+  }
+
+  .user-message {
+    background-color: #e0f7fa;
+    align-self: flex-end;
+  }
+
+  .assistant-message {
+    background-color: #f1f8e9; /* light green */
+    align-self: flex-start;
   }
 
   /* Style for the "AI is thinking..." message */
@@ -358,13 +355,14 @@
   }
 
   textarea {
-    width: 97.2%;
+    width: 100%;
     padding: 10px;   /* Reduced padding for a more compact input box */
     border-radius: 5px;
     border: 1px solid #ccc;
     font-size: 14px;
     resize: none; /* Prevent resizing */
     height: 80px;  /* Set a specific height */
+    box-sizing: border-box;
   }
 
   input[type="file"] {
@@ -391,11 +389,6 @@
   button:disabled {
     background-color: #ccc;
     cursor: not-allowed;
-  }
-
-  .user-message {
-    background-color: #e0f7fa;
-    align-self: flex-end;
   }
 
   /* Styles for file previews and status messages */
@@ -478,6 +471,7 @@
     border-radius: 5px; /* Add rounded corners */
     white-space: pre-wrap; /* Maintain line breaks and spaces but allow wrapping */
   }
+
   /* Customize bold text */
   strong {
     font-weight: bold; /* Ensure bold text stays bold */
@@ -492,30 +486,18 @@
     border-radius: 80%;
   }
 
-  qheader {
-    font-style: italic;
-    font-weight: bold;
-  }
 </style>
 
 <div class="chat-container">
   <h1>SvelteGPT - Your AI Tutor</h1>
 
   <!-- Displaying the conversation messages -->
-  <!-- <div class="message-container" bind:this={messageContainer}>
-    {#each messages as { role, content }}
-      <div class={role === 'user' ? 'user-message' : 'assistant-message'}>
-        <strong>{role === 'user' ? 'You' : 'Tutor'}:</strong>
-        <pre>{content}</pre>
-      </div>
-    {/each}
-  </div> -->
   <div class="message-container" bind:this={messageContainer}>
     {#each messages as { role, content }}
       <div class={role === 'user' ? 'user-message' : 'assistant-message'}>
         <strong>{role === 'user' ? 'You' : 'Tutor'}:</strong>
         <pre>{@html formatMessage(content)}</pre> <!-- Use the formatted message -->
-        <pre>{content}</pre>
+        <!-- Removed the duplicate raw content rendering -->
       </div>
     {/each}
   </div>
@@ -537,12 +519,16 @@
       ></textarea>
 
       <!-- File Upload Section -->
-      <label for="file">Attach images or PDFs:</label>
-      <input type="file" id="file" accept="image/jpeg,image/png,application/pdf" multiple on:change={handleFileChange} />
-      <!-- File Upload Section -->      
       <div bind:this={uploadArea}>
         <label for="file">Attach images or PDFs:</label>
-        <input type="file" bind:value={fileValue} id="file" accept="image/jpeg,image/png,application/pdf" multiple on:change={handleFileChange} />
+        <input
+          type="file"
+          bind:value={fileValue}
+          id="file"
+          accept="image/jpeg,image/png,application/pdf"
+          multiple
+          on:change={handleFileChange}
+        />
       </div>
 
       <!-- Display Previews of Selected Files -->
@@ -577,7 +563,9 @@
       <button type="submit" disabled={isLoading || (prompt.trim() === "" && selectedFiles.length === 0)}>
         {isLoading ? 'Processing...' : 'Send'}
       </button>
-      <button type="summarize" on:click={sendSummary} disabled={!hasContentSent}> Summarize </button>
+      <button type="button" on:click={sendSummary} disabled={!hasContentSent}>
+        Summarize
+      </button>
     </form>
   </div>
 </div>
