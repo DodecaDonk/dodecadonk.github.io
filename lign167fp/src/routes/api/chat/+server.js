@@ -1,4 +1,4 @@
-// src/routes/api/chat/+server.js
+// ChatGPT was used to write the framework for the backend file server.js.
 
 import { json } from '@sveltejs/kit';
 import { OPENAI_API_KEY } from '$env/static/private'; // Ensure your API key is set correctly
@@ -18,28 +18,6 @@ if (!fs.existsSync(UPLOAD_DIR)) {
 let documents = [];
 
 const sessionStore = {}; // Key: sessionId, Value: { documents: [], messages: [] }
-
-// Define maximum limits
-const MAX_MESSAGES = 100;
-const MAX_DOCUMENTS = 50;
-
-// Helper function to trim messages
-function trimMessages(messages) {
-  if (messages.length > MAX_MESSAGES) {
-    // Remove the oldest messages
-    return messages.slice(-MAX_MESSAGES);
-  }
-  return messages;
-}
-
-// Helper function to trim documents
-function trimDocuments(documents) {
-  if (documents.length > MAX_DOCUMENTS) {
-    // Remove the oldest documents
-    return documents.slice(-MAX_DOCUMENTS);
-  }
-  return documents;
-}
 
 export const POST = async ({ request }) => {
   try {
@@ -132,7 +110,7 @@ You will know if you have received an image as it will state "Content from Image
 7. **Do not use information from any external sources** to formulate questions.
 8. Correct the student's responses based on the accuracy relative to the information provided in the uploaded documents.
 9. If the student replies that they do not know the answer to the question, give them the answer.
-10. At the end of the session, provide a **summary** highlighting areas the student should improve on based on their incorrect responses, and point out areas where they did well!.
+10. At the end of the session, provide a **summary** highlighting topics the student should improve on based on their incorrect responses, and point out topics where they did well!.
 
 **Guidelines if you have received a PDF**
 You will know if you have received a PDF as it will state "Content from Slide #"
@@ -146,6 +124,9 @@ You will know if you have received a PDF as it will state "Content from Slide #"
 8. If a student asks for the content of a certain slide, give them a summary of what the slide contains. Ask them if they would like to answer a question based on that slide, and if yes, ask them 2 questions regarding the content of the specified slide.
 9. Once all the slides have been exhausted, give a summary of the student's progress for this session based on the incorrect answers they gave, and make recommendations to continue working on those topics. 
 10. In addition to saying which topics the student struggled on, include the slide number where the topic is discussed.
+11. When adding your recommendations, include the slide numbers in which the topic appears. 
+12. When giving a summary of your progress, write out at the top the number of questions the student answered. 
+13. Only specify TOPICS that the student did well on.
 
 **Response Formatting:**
 - Utilize headings, bullet points, bold text, and other HTML elements where appropriate for clarity and emphasis.
@@ -221,9 +202,6 @@ You will know if you have received a PDF as it will state "Content from Slide #"
     // Save messages to the session store
     sessionStore[sessionId].messages = sessionStore[sessionId].messages.concat(messageHistory);
 
-    // Trim messages if necessary
-    sessionStore[sessionId].messages = trimMessages(sessionStore[sessionId].messages);
-
     // Initialize conversation messages
     let conversation = [
       systemMessage,
@@ -268,14 +246,11 @@ You will know if you have received a PDF as it will state "Content from Slide #"
     // Log the AI's reply for debugging
     console.log('AI Reply:', data.choices[0].message.content);
 
-    // Optionally, update the session messages with the latest prompt and response
+    // Update the session messages with the latest prompt and response
     sessionStore[sessionId].messages = sessionStore[sessionId].messages.concat([
       { role: 'user', content: prompt },
       { role: 'assistant', content: data.choices[0].message.content }
     ]);
-
-    // Trim messages again after adding the latest interaction
-    sessionStore[sessionId].messages = trimMessages(sessionStore[sessionId].messages);
 
     // Return the AI's reply along with the sessionId for client-side tracking
     return json({ 

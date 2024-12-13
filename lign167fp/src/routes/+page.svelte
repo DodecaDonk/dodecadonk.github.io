@@ -1,5 +1,5 @@
-<!-- src/routes/+page.svelte -->
 <script>
+  //ChatGPT was used to write the framework for the frontend file page.svelte".
   import { afterUpdate, onDestroy, onMount } from 'svelte';
 
   let prompt = "";              // The user input for the prompt
@@ -167,7 +167,7 @@
 
    // Function to send a summary message to the tutor
    async function sendSummary() {
-    prompt = "I am done answering questions, give me a summary";
+    prompt = "I am done answering questions, give me a summary of my work!";
   }
 
   // Handle the Enter key press to send the prompt
