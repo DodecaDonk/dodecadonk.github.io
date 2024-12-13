@@ -1,6 +1,6 @@
 <!-- src/routes/+page.svelte -->
 <script>
-  import { afterUpdate, onDestroy } from 'svelte';
+  import { afterUpdate, onDestroy, onMount } from 'svelte';
 
   let prompt = "";              // The user input for the prompt
   let messages = [];            // An array to store the conversation history
@@ -17,6 +17,17 @@
   const MAX_FILES = 5;          // Maximum number of files allowed
   const allowedTypes = ['image/jpeg', 'image/png', 'application/pdf']; // Allowed file types
   const MAX_SIZE = 5 * 1024 * 1024; // 5MB per file
+  let fileUploader;             // Bindings for clearing the file upload text
+  let uploadArea;               // ^
+  let fileValue;                // ^
+
+  const MAX_FILES = 5;          // Maximum number of files allowed
+  const allowedTypes = ['image/jpeg', 'image/png', 'application/pdf']; // Allowed file types
+  const MAX_SIZE = 10 * 1024 * 1024; // 10MB per file
+
+  onMount(() => {
+    fileUploader = uploadArea.querySelector('.file'); //binds the uploader
+  });
 
   // Function to handle file selection
   function handleFileChange(event) {
@@ -192,6 +203,9 @@
       previewUrls.forEach(file => URL.revokeObjectURL(file.url)); // Clean up preview URLs
       previewUrls = [];
       isLoading = false;
+
+      fileValue = ''; //clears the file value text
+      console.log(fileValue);
     }
   }
 
@@ -265,6 +279,10 @@
     background-color: #e0f7fa;
     align-self: flex-end;
     margin-bottom: 10px;
+    overflow-x: auto;
+    padding: 10px;
+    max-height: 100%;
+    box-sizing: border-box; 
   }
 
   .assistant-message {
@@ -280,6 +298,20 @@
     max-width: 100%;
     width: 100%;
     box-sizing: border-box;
+    max-width: max-content; 
+    min-width: 50%; 
+    white-space: pre-wrap; 
+    overflow: auto; 
+    box-sizing: border-box; 
+  }
+
+  .user-message, .assistant-message {
+    padding: 10px;
+    border-radius: 5px;
+    margin-bottom: 10px;
+    max-width: 90%; 
+    word-wrap: break-word;
+    white-space: pre-wrap;
   }
 
   /* Style for the "AI is thinking..." message */
@@ -359,6 +391,11 @@
   button:disabled {
     background-color: #ccc;
     cursor: not-allowed;
+  }
+
+  .user-message {
+    background-color: #e0f7fa;
+    align-self: flex-end;
   }
 
   /* Styles for file previews and status messages */
@@ -478,13 +515,14 @@
       <div class={role === 'user' ? 'user-message' : 'assistant-message'}>
         <strong>{role === 'user' ? 'You' : 'Tutor'}:</strong>
         <pre>{@html formatMessage(content)}</pre> <!-- Use the formatted message -->
+        <pre>{content}</pre>
       </div>
     {/each}
   </div>
 
   <!-- Loading state message -->
   {#if isLoading}
-    <p class="loading">The Tutor is thinking...</p>
+    <p class="loading">thinking...</p>
   {/if}
 
   <!-- Chat Input Form -->
@@ -501,6 +539,11 @@
       <!-- File Upload Section -->
       <label for="file">Attach images or PDFs:</label>
       <input type="file" id="file" accept="image/jpeg,image/png,application/pdf" multiple on:change={handleFileChange} />
+      <!-- File Upload Section -->      
+      <div bind:this={uploadArea}>
+        <label for="file">Attach images or PDFs:</label>
+        <input type="file" bind:value={fileValue} id="file" accept="image/jpeg,image/png,application/pdf" multiple on:change={handleFileChange} />
+      </div>
 
       <!-- Display Previews of Selected Files -->
       {#if previewUrls.length > 0}
