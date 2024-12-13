@@ -12,6 +12,11 @@
   let previewUrls = [];         // An array to hold preview URLs for selected files
   let uploadError = '';         // Error message for file upload
   let uploadSuccess = false;    // Success flag for file upload
+  let hasContentSent = false;   // Detects if files have been uploaded for summarize button
+
+  const MAX_FILES = 5;          // Maximum number of files allowed
+  const allowedTypes = ['image/jpeg', 'image/png', 'application/pdf']; // Allowed file types
+  const MAX_SIZE = 5 * 1024 * 1024; // 5MB per file
   let fileUploader;             // Bindings for clearing the file upload text
   let uploadArea;               // ^
   let fileValue;                // ^
@@ -74,6 +79,20 @@
     uploadError = '';
   }
 
+  // Function to convert Markdown-like syntax to HTML tags
+  function formatMessage(content) {
+    // Replace **text** with <strong>text</strong>
+    content = content.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+
+    // Replace `text` with <code>text</code>
+    content = content.replace(/`(.*?)`/g, '<code>$1</code>');
+
+    content = content.replace(/###(.*?)(?=\n|$)/g, '<qheader>$1</qheader>')
+
+    content = content.replace(/#+/g, '')
+    return content;
+  }
+
   // Function to send the user's prompt and files to the backend and get the AI's response
   async function sendPrompt() {
     if (!prompt.trim() && selectedFiles.length === 0) return; // Prevent sending if no prompt or files
@@ -87,6 +106,9 @@
       const formData = new FormData();
       formData.append('prompt', prompt);
       formData.append('messages', JSON.stringify(messages));
+
+      // Detects if files have been uploaded
+      const hasFiles = selectedFiles.length > 0;
 
       // Append all selected files to the FormData
       selectedFiles.forEach(file => {
@@ -108,7 +130,9 @@
           { role: 'user', content: prompt },
           { role: 'assistant', content: data.reply }
         ];
-        uploadSuccess = true; // Set upload success flag if applicable
+
+        uploadSuccess = hasFiles; // Set upload success flag if applicable
+        hasContentSent = true;
       } else if (data.error) {
         // Handle errors returned from the server
         messages = [
@@ -131,6 +155,47 @@
         { role: 'system', content: `Unexpected Error: ${error.message}` }
       ];
       uploadError = error.message || 'An unexpected error occurred.';
+    } finally {
+      // Reset prompt and file input
+      prompt = "";
+      selectedFiles = [];
+      previewUrls.forEach(file => URL.revokeObjectURL(file.url)); // Clean up preview URLs
+      previewUrls = [];
+      isLoading = false;
+    }
+  }
+
+   // Function to send a summary message to the tutor
+   async function sendSummary() {
+    prompt = "I am done answering questions, give me a summary";
+    if (!prompt.trim() && selectedFiles.length === 0) return; // Prevent sending if no prompt or files
+
+    isLoading = true;
+    uploadError = '';
+    uploadSuccess = false;
+
+    try {
+      // Create a FormData object to handle multipart/form-data
+      const formData = new FormData();
+      formData.append('prompt', prompt);
+      formData.append('messages', JSON.stringify(messages));
+
+      // Send the prompt and files to the backend
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        body: formData, // Let the browser set the Content-Type to multipart/form-data
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.reply) {
+        // Add user prompt and AI reply to the conversation history
+        messages = [
+          ...messages,
+          { role: 'user', content: prompt },
+          { role: 'assistant', content: data.reply }
+        ];
+      }
     } finally {
       // Reset prompt and file input
       prompt = "";
@@ -166,6 +231,8 @@
 </script>
 
 <style>
+  @import url('https://fonts.googleapis.com/css2?family=Josefin+Sans:ital,wght@0,100..700;1,100..700&family=Open+Sans&family=Spinnaker&display=swap');
+
   /* Make sure the body and html fill the entire viewport */
   :global(html, body) {
     height: 100%;  /* Full height of the viewport */
@@ -175,8 +242,8 @@
   }
 
   .chat-container {
-    max-width: 800px;
-    margin: 20px auto;
+    max-width: 70%;
+    margin: 40px auto;
     padding: 20px;
     background-color: #ffffff;
     border-radius: 10px;
@@ -192,12 +259,26 @@
     text-align: center; /* Center the title text */
     margin-bottom: 20px; /* Add some spacing below the title */
     color: #333333;
+    font-family: "Josefin Sans", sans-serif;
   }
 
   /* Adjust the message container */
   .message-container {
     flex-grow: 1;
     overflow-y: auto; 
+    overflow-x: hidden;
+    padding: 10px;
+    max-height: 100%;
+    box-sizing: border-box; 
+
+    max-width: 100%;
+    white-space: normal;
+  }
+
+  .user-message {
+    background-color: #e0f7fa;
+    align-self: flex-end;
+    margin-bottom: 10px;
     overflow-x: auto;
     padding: 10px;
     max-height: 100%;
@@ -209,6 +290,14 @@
     align-self: flex-start;
     padding: 12px 24px; 
     border-radius: 5px; 
+    margin-bottom: 10px;
+  }
+
+  .user-message, .assistant-message {
+    padding: 12px 18px;
+    max-width: 100%;
+    width: 100%;
+    box-sizing: border-box;
     max-width: max-content; 
     min-width: 50%; 
     white-space: pre-wrap; 
@@ -238,6 +327,34 @@
     flex-direction: column;
     gap: 10px; /* Space between textarea and button */
     margin-top: 10px;
+  }
+
+  button[type="summarize"] {
+    background-color: #a1e6b1; /* Green color */
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    cursor: pointer;
+    border-radius: 5px;
+    width: 100%;
+    height: 40px;
+    font-size: 16px;
+    transition: background-color 0.3s ease;
+    margin-top: 10px; /* Add some margin for spacing */
+  }
+
+  /* Hover effect when the button is not disabled */
+  button[type="summarize"]:hover {
+    background-color: #218838; /* Darker green on hover */
+  }
+
+  /* Style for the disabled button */
+  button[type="summarize"]:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+  }
+  button[type="summarize"]:hover:not(:disabled) {
+    background-color: #16a400;
   }
 
   textarea {
@@ -351,16 +468,53 @@
     font-weight: bold;
     color: red;
   }
+
+  pre {
+    font-family: 'Lato', sans-serif;
+    font-weight: 100;
+    font-style: normal;
+    color: #575757; /* Set the text color */
+    padding: 10px; /* Add some padding inside the pre tag */
+    border-radius: 5px; /* Add rounded corners */
+    white-space: pre-wrap; /* Maintain line breaks and spaces but allow wrapping */
+  }
+  /* Customize bold text */
+  strong {
+    font-weight: bold; /* Ensure bold text stays bold */
+  }
+
+  /* Customize inline code */
+  code {
+    font-family: 'Courier New', monospace; /* Keep code in monospace */
+    font-size: 30px !important;
+    font-weight: bold;
+    background-color: #e0e0e0;
+    border-radius: 80%;
+  }
+
+  qheader {
+    font-style: italic;
+    font-weight: bold;
+  }
 </style>
 
 <div class="chat-container">
   <h1>SvelteGPT - Your AI Tutor</h1>
 
   <!-- Displaying the conversation messages -->
+  <!-- <div class="message-container" bind:this={messageContainer}>
+    {#each messages as { role, content }}
+      <div class={role === 'user' ? 'user-message' : 'assistant-message'}>
+        <strong>{role === 'user' ? 'You' : 'Tutor'}:</strong>
+        <pre>{content}</pre>
+      </div>
+    {/each}
+  </div> -->
   <div class="message-container" bind:this={messageContainer}>
     {#each messages as { role, content }}
       <div class={role === 'user' ? 'user-message' : 'assistant-message'}>
         <strong>{role === 'user' ? 'You' : 'Tutor'}:</strong>
+        <pre>{@html formatMessage(content)}</pre> <!-- Use the formatted message -->
         <pre>{content}</pre>
       </div>
     {/each}
@@ -382,6 +536,9 @@
         on:keydown={handleKeyPress}
       ></textarea>
 
+      <!-- File Upload Section -->
+      <label for="file">Attach images or PDFs:</label>
+      <input type="file" id="file" accept="image/jpeg,image/png,application/pdf" multiple on:change={handleFileChange} />
       <!-- File Upload Section -->      
       <div bind:this={uploadArea}>
         <label for="file">Attach images or PDFs:</label>
@@ -420,6 +577,7 @@
       <button type="submit" disabled={isLoading || (prompt.trim() === "" && selectedFiles.length === 0)}>
         {isLoading ? 'Processing...' : 'Send'}
       </button>
+      <button type="summarize" on:click={sendSummary} disabled={!hasContentSent}> Summarize </button>
     </form>
   </div>
 </div>
