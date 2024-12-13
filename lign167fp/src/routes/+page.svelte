@@ -70,6 +70,8 @@
 
     selectedFiles.splice(index, 1);
     previewUrls.splice(index, 1);
+    previewUrls = [...previewUrls];
+    console.log(previewUrls.length);
 
     // Clear error if any
     uploadError = '';
@@ -158,6 +160,8 @@
       previewUrls.forEach(file => URL.revokeObjectURL(file.url)); // Clean up preview URLs
       previewUrls = [];
       isLoading = false;
+
+      fileValue = '';
     }
   }
 
