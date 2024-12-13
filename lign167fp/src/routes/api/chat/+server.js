@@ -1,4 +1,4 @@
-// src/routes/api/chat/+server.js
+// ChatGPT was used to write the framework for the backend file server.js.
 
 import { json } from '@sveltejs/kit';
 import { OPENAI_API_KEY } from '$env/static/private'; // Ensure your API key is set correctly

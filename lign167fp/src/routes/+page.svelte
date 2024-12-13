@@ -1,5 +1,5 @@
-<!-- src/routes/+page.svelte -->
 <script>
+  //ChatGPT was used to write the framework for the frontend file page.svelte".
   import { afterUpdate, onDestroy, onMount } from 'svelte';
 
   let prompt = "";              // The user input for the prompt
