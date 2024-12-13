@@ -163,7 +163,7 @@
 
    // Function to send a summary message to the tutor
    async function sendSummary() {
-    prompt = "I am done answering questions, give me a summary";
+    prompt = "I am done answering questions, give me a summary of my work!";
   }
 
   // Handle the Enter key press to send the prompt
